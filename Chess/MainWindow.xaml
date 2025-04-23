@@ -1,21 +1,74 @@
 ﻿<Window x:Class="ChessTrainer.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Chess Trainer" Height="550" Width="550">
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ChessTrainer"
+        mc:Ignorable="d"
+        Title="Шаховий Тренажер" Height="600" Width="800"
+        WindowStartupLocation="CenterScreen">
     <Grid>
-        <!-- ComboBox для вибору теми -->
-        <ComboBox Name="ThemeSelector" SelectionChanged="OnThemeChanged"
-              HorizontalAlignment="Left" VerticalAlignment="Top"
-              Margin="10" Width="120">
-            <ComboBoxItem Content="Класична" IsSelected="True"/>
-            <ComboBoxItem Content="Синя"/>
-            <ComboBoxItem Content="Зелена"/>
-        </ComboBox>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-        <!-- Canvas для шахової дошки -->
-        <Canvas Name="ChessBoardCanvas" Width="480" Height="480"
-            VerticalAlignment="Center" HorizontalAlignment="Center"
-            Margin="0,40,0,0"/>
+        <StackPanel Grid.Column="0" Grid.Row="0" Margin="10" Orientation="Horizontal" HorizontalAlignment="Left">
+            <Button Content="Очистити дошку" Click="ClearBoard_Click" Margin="0,0,10,0"/>
+            <Button Content="2 гравці" Click="SetTwoPlayersMode_Click" Margin="0,0,10,0"/>
+            <Button Content="Проти комп'ютера" Click="SetComputerMode_Click" Margin="0,0,10,0"/>
+            <ComboBox x:Name="DifficultyComboBox" Width="120" Visibility="Collapsed" Margin="0,0,10,0">
+                <ComboBoxItem Content="Легкий" IsSelected="True"/>
+                <ComboBoxItem Content="Середній"/>
+                <ComboBoxItem Content="Складний"/>
+            </ComboBox>
+            <Button Content="Зберегти" Click="SavePosition_Click" Margin="0,0,10,0"/>
+            <Button Content="Завантажити" Click="LoadPosition_Click"/>
+        </StackPanel>
+
+        <ItemsControl Grid.Column="0" Grid.Row="1" ItemsSource="{Binding Board}" Margin="10" >
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Width="70" Height="70" Background="{Binding BackgroundColor}" BorderBrush="Black" BorderThickness="1"
+                            MouseLeftButtonDown="BoardCell_MouseLeftButtonDown"
+                            AllowDrop="True"
+                            DragEnter="BoardCell_DragEnter"
+                            Drop="BoardCell_Drop">
+                        <TextBlock Text="{Binding Piece}"
+                                           FontFamily="Segoe UI Symbol"
+                                           FontSize="48"
+                                           TextAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Columns="8" Rows="8"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+        </ItemsControl>
+
+        <StackPanel Grid.Column="2" Grid.Row="1" Margin="10" VerticalAlignment="Top">
+            <TextBlock Text="Білий час:" Margin="0,0,0,5"/>
+            <TextBlock x:Name="WhiteTimeTextBlock" Text="00:30:00" FontSize="24"  Margin="0,0,0,10"/>
+            <TextBlock Text="Чорний час:" Margin="0,0,0,5"/>
+            <TextBlock x:Name="BlackTimeTextBlock" Text="00:30:00" FontSize="24"  Margin="0,0,0,20"/>
+            <TextBlock Text="Історія ходів:" Margin="0,0,0,5"/>
+            <ListBox x:Name="MoveHistoryListBox" Height="200" Width="200" />
+        </StackPanel>
+
+        <TextBlock x:Name="StatusTextBlock" Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="3" Text="Статус гри" Margin="10" VerticalAlignment="Bottom"/>
+        <Grid.Resources>
+            <local:ColorConverter x:Key="ColorConverter"/>
+            <local:PieceColorConverter x:Key="PieceColorConverter"/>
+        </Grid.Resources>
+
     </Grid>
-
 </Window>
