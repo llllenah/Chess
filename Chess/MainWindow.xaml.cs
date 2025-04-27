@@ -52,52 +52,31 @@ namespace ChessTrainer
         private bool _isTimerRunning;
 
         private BoardCell? _selectedCell;
+        private GameLogic _gameLogic;
 
         public MainWindow()
         {
             InitializeComponent();
-            InitializeBoard();
+            _gameLogic = new GameLogic();
+            Board = _gameLogic.GetCurrentBoard();
             DataContext = this;
             InitializeTimers();
             StartTimers();
+            UpdateStatusText();
         }
 
-        private void InitializeBoard()
+        private void UpdateBoardUI()
         {
-            Board = new ObservableCollection<BoardCell>();
-            for (int row = 0; row < 8; row++)
-            {
-                for (int col = 0; col < 8; col++)
-                {
-                    string? piece = null;
-                    string? color = null;
-
-                    if (row == 1) color = "black";
-                    if (row == 6) color = "white";
-                    if (row == 0 && (col == 0 || col == 7)) { piece = "♜"; color = "black"; }
-                    if (row == 7 && (col == 0 || col == 7)) { piece = "♖"; color = "white"; }
-                    if (row == 0 && (col == 1 || col == 6)) { piece = "♞"; color = "black"; }
-                    if (row == 7 && (col == 1 || col == 6)) { piece = "♘"; color = "white"; }
-                    if (row == 0 && (col == 2 || col == 5)) { piece = "♝"; color = "black"; }
-                    if (row == 7 && (col == 2 || col == 5)) { piece = "♗"; color = "white"; }
-                    if (row == 0 && col == 3) { piece = "♛"; color = "black"; }
-                    if (row == 7 && col == 3) { piece = "♕"; color = "white"; }
-                    if (row == 0 && col == 4) { piece = "♚"; color = "black"; }
-                    if (row == 7 && col == 4) { piece = "♔"; color = "white"; }
-                    if (row == 1) piece = "♟";
-                    if (row == 6) piece = "♙";
-
-                    Board.Add(new BoardCell(row, col, (row + col) % 2 == 0 ? Brushes.LightGray : Brushes.White, piece, color));
-                }
-            }
+            Board = _gameLogic.GetCurrentBoard();
         }
 
         private void ClearBoard_Click(object sender, RoutedEventArgs e)
         {
-            InitializeBoard();
+            _gameLogic = new GameLogic();
+            UpdateBoardUI();
             MoveHistory.Clear();
             _currentPlayer = "white";
-            StatusTextBlock.Text = "Дошку очищено. Хід білих.";
+            UpdateStatusText();
             ResetTimers();
             StartTimers();
         }
@@ -106,8 +85,9 @@ namespace ChessTrainer
         {
             _isTwoPlayersMode = true;
             _isComputerMode = false;
+            _gameLogic.SetComputerMode(false);
             DifficultyComboBox.Visibility = Visibility.Collapsed;
-            StatusTextBlock.Text = "Режим для двох гравців.";
+            UpdateStatusText();
             ResetTimers();
             StartTimers();
         }
@@ -116,88 +96,21 @@ namespace ChessTrainer
         {
             _isComputerMode = true;
             _isTwoPlayersMode = false;
+            _gameLogic.SetComputerMode(true);
             DifficultyComboBox.Visibility = Visibility.Visible;
-            StatusTextBlock.Text = "Режим проти комп'ютера. Хід білих.";
+            UpdateStatusText();
             ResetTimers();
             StartTimers();
         }
 
         private void SavePosition_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                using (StreamWriter writer = new StreamWriter("chess_position.txt"))
-                {
-                    foreach (var cell in Board)
-                    {
-                        writer.WriteLine($"{cell.Row},{cell.Col},{cell.Piece},{cell.Color}");
-                    }
-                    writer.WriteLine(_currentPlayer);
-                    writer.WriteLine(_whiteTimeLeft.Ticks);
-                    writer.WriteLine(_blackTimeLeft.Ticks);
-                }
-                MessageBox.Show("Позицію збережено у файл chess_position.txt");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Помилка при збереженні позиції: {ex.Message}");
-            }
+            // Логіка збереження позиції (потрібно оновити з урахуванням нових класів)
         }
 
         private void LoadPosition_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                if (File.Exists("chess_position.txt"))
-                {
-                    using (StreamReader reader = new StreamReader("chess_position.txt"))
-                    {
-                        Board.Clear();
-                        for (int i = 0; i < 64; i++)
-                        {
-                            string? line = reader.ReadLine();
-                            if (line != null)
-                            {
-                                string[] parts = line.Split(',');
-                                int row = int.Parse(parts[0]);
-                                int col = int.Parse(parts[1]);
-                                string piece = parts[2];
-                                string color = parts[3];
-                                Board.Add(new BoardCell(row, col, (row + col) % 2 == 0 ? Brushes.LightGray : Brushes.White, piece, color));
-                            }
-                        }
-
-                        string? currentPlayerLine = reader.ReadLine();
-                        if (currentPlayerLine != null)
-                            _currentPlayer = currentPlayerLine;
-
-                        string? whiteTimeTicksStr = reader.ReadLine();
-                        string? blackTimeTicksStr = reader.ReadLine();
-
-                        if (!string.IsNullOrEmpty(whiteTimeTicksStr) && !string.IsNullOrEmpty(blackTimeTicksStr))
-                        {
-                            _whiteTimeLeft = TimeSpan.FromTicks(long.Parse(whiteTimeTicksStr));
-                            _blackTimeLeft = TimeSpan.FromTicks(long.Parse(blackTimeTicksStr));
-                        }
-                        else
-                        {
-                            InitializeTimers();
-                        }
-                        OnPropertyChanged(nameof(Board));
-                        UpdateTimersDisplay();
-                        StartTimers();
-                        MessageBox.Show("Позицію завантажено з файлу chess_position.txt");
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("Файл chess_position.txt не знайдено.");
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Помилка при завантаженні позиції: {ex.Message}");
-            }
+            // Логіка завантаження позиції (потрібно оновити з урахуванням нових класів)
         }
 
         private void UpdateMoveHistory(string move)
@@ -209,8 +122,8 @@ namespace ChessTrainer
 
         private void SwitchPlayer()
         {
-            _currentPlayer = _currentPlayer == "white" ? "black" : "white";
-            StatusTextBlock.Text = $"Хід {_currentPlayer}.";
+            _currentPlayer = _gameLogic.GetCurrentPlayer();
+            UpdateStatusText();
 
             if (_isTimerRunning)
             {
@@ -225,6 +138,11 @@ namespace ChessTrainer
                     _blackTimer?.Start();
                 }
             }
+        }
+
+        private void UpdateStatusText()
+        {
+            StatusTextBlock.Text = _isComputerMode ? $"Режим проти комп'ютера. Хід {_currentPlayer}." : $"Режим для двох гравців. Хід {_currentPlayer}.";
         }
 
         private void InitializeTimers()
@@ -264,6 +182,7 @@ namespace ChessTrainer
             StopTimers();
             InitializeTimers();
         }
+
 
         private void WhiteTimerTick(object? sender, EventArgs e)
         {
@@ -305,196 +224,71 @@ namespace ChessTrainer
                 BlackTimeTextBlock.Text = _blackTimeLeft.ToString(@"hh\:mm\:ss");
         }
 
-        protected virtual void OnPropertyChanged(string? propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
+        private Point _dragStartPoint;
+        private BoardCell? _draggedCell;
 
         private void BoardCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (sender is FrameworkElement element && element.DataContext is BoardCell cell)
-            {
-                if (cell.Piece != null && ((cell.Color == "white" && _currentPlayer == "white") || (cell.Color == "black" && _currentPlayer == "black")))
-                {
-                    _selectedCell = cell;
-                    try
-                    {
-                        DragDrop.DoDragDrop(element, cell, DragDropEffects.Move);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Exception during DragDrop: {ex.Message}");
-                    }
-                }
-            }
+            if (!(sender is Border clickedBorder) || !(clickedBorder.DataContext is BoardCell clickedCell))
+                return;
+
+            _dragStartPoint = e.GetPosition(null);
+            _draggedCell = clickedCell;
+
+            DataObject dragData = new DataObject(typeof(BoardCell), clickedCell);
+            DragDrop.DoDragDrop(clickedBorder, dragData, DragDropEffects.Move);
         }
 
         private void BoardCell_DragEnter(object sender, DragEventArgs e)
         {
-            if (sender is FrameworkElement element && element.DataContext is BoardCell cell)
+            if (!(sender is Border targetBorder) || !(targetBorder.DataContext is BoardCell targetCell) || _draggedCell == null || targetCell == _draggedCell)
+                return;
+
+            if (e.Data.GetDataPresent(typeof(BoardCell)))
             {
-                if (_selectedCell != null && cell != _selectedCell)
-                {
-                    e.Effects = DragDropEffects.Move;
-                }
-                else
-                {
-                    e.Effects = DragDropEffects.None;
-                }
-                e.Handled = true;
+                e.Effects = DragDropEffects.Move;
             }
         }
 
         private void BoardCell_Drop(object sender, DragEventArgs e)
         {
-            if (sender is FrameworkElement element && element.DataContext is BoardCell targetCell)
+            if (!(sender is Border dropBorder) || !(dropBorder.DataContext is BoardCell dropCell) || _draggedCell == null || dropCell == _draggedCell)
+                return;
+
+            int startRow = _draggedCell.Row;
+            int startCol = _draggedCell.Col;
+            int endRow = dropCell.Row;
+            int endCol = dropCell.Col;
+
+            if (_gameLogic.TryMovePiece(startRow, startCol, endRow, endCol))
             {
-                if (_selectedCell != null)
-                {
-                    string? movingPiece = _selectedCell.Piece;
-                    string? movingPieceColor = _selectedCell.Color;
-
-                    _selectedCell.Piece = null;
-                    _selectedCell.Color = null;
-
-                    targetCell.Piece = movingPiece;
-                    targetCell.Color = movingPieceColor;
-
-                    string moveString = $"{GetCellNotation(_selectedCell.Col, _selectedCell.Row)} - {GetCellNotation(targetCell.Col, targetCell.Row)}";
-                    UpdateMoveHistory(moveString);
-
-                    SwitchPlayer();
-
-                    OnPropertyChanged(nameof(Board));
-
-                    _selectedCell = null;
-                }
+                string moveNotation = GetMoveNotation(_draggedCell, dropCell);
+                UpdateMoveHistory(moveNotation);
+                UpdateBoardUI();
+                SwitchPlayer();
             }
-            e.Handled = true;
+
+            _draggedCell = null;
         }
 
-        private string GetCellNotation(int col, int row)
+        private string GetMoveNotation(BoardCell startCell, BoardCell endCell)
         {
-            char colChar = (char)('a' + col);
-            int rowNum = 8 - row;
-            return $"{colChar}{rowNum}";
+            // Потрібно буде додати більш складну логіку для нотації (враховувати тип фігури, взяття тощо)
+            string startSquare = GetSquareNotation(startCell.Col, startCell.Row);
+            string endSquare = GetSquareNotation(endCell.Col, endCell.Row);
+            return $"{startSquare}-{endSquare}";
         }
-    }
 
-    [Serializable]
-    public class BoardCell : INotifyPropertyChanged
-    {
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        public int Row { get; }
-        public int Col { get; }
-
-        private Brush _backgroundColor = Brushes.White;
-        public Brush BackgroundColor
+        private string GetSquareNotation(int col, int row)
         {
-            get { return _backgroundColor; }
-            set
-            {
-                _backgroundColor = value;
-                OnPropertyChanged(nameof(BackgroundColor));
-            }
+            char file = (char)('a' + col);
+            int rank = 8 - row;
+            return $"{file}{rank}";
         }
 
-        private string? _piece;
-        public string? Piece
-        {
-            get { return _piece; }
-            set
-            {
-                _piece = value;
-                OnPropertyChanged(nameof(Piece));
-            }
-        }
-
-        private string? _color;
-        public string? Color
-        {
-            get { return _color; }
-            set
-            {
-                _color = value;
-                OnPropertyChanged(nameof(Color));
-            }
-        }
-
-        public BoardCell()
-        {
-            _piece = null;
-            _color = null;
-        }
-
-        public BoardCell(int row, int col, Brush backgroundColor, string? piece, string? color)
-        {
-            Row = row;
-            Col = col;
-            BackgroundColor = backgroundColor;
-            Piece = piece;
-            Color = color;
-        }
-
-        protected virtual void OnPropertyChanged(string? propertyName = null)
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-    }
-
-    public class ColorConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is string colorName)
-            {
-                switch (colorName.ToLower())
-                {
-                    case "white":
-                        return Brushes.White;
-                    case "black":
-                        return Brushes.Black;
-                    default:
-                        return Brushes.Gray;
-                }
-            }
-            return Brushes.Gray;
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
-    }
-    public class PieceColorConverter : IMultiValueConverter
-    {
-        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (values.Length == 2 && values[0] is string pieceColor && values[1] is Brush backgroundColor)
-            {
-                if (pieceColor.ToLower() == "white")
-                {
-                    if (backgroundColor == Brushes.White || backgroundColor == Brushes.LightGray)
-                    {
-                        return Brushes.Black;
-                    }
-                    else
-                    {
-                        return Brushes.White;
-                    }
-                }
-                else if (pieceColor.ToLower() == "black")
-                {
-                    return Brushes.Black;
-                }
-            }
-            return Brushes.Gray;
-        }
-
-        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
         }
     }
 }
