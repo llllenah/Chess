@@ -40,11 +40,11 @@
                             AllowDrop="True"
                             DragEnter="BoardCell_DragEnter"
                             Drop="BoardCell_Drop">
-                        <TextBlock Text="{Binding Piece}"
-                                           FontFamily="Segoe UI Symbol"
-                                           FontSize="48"
-                                           TextAlignment="Center"
-                                           VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding PieceSymbol}"
+           FontFamily="Segoe UI Symbol"
+           FontSize="48"
+           TextAlignment="Center"
+           VerticalAlignment="Center"/>
                     </Border>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>

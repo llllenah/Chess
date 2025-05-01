@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Media;
@@ -13,10 +12,13 @@ namespace ChessTrainer
         private string _currentPlayer = "white";
         private bool _isComputerMode = false;
         private int _computerDifficulty = 1; // 1: Легкий (випадковий), 2: Середній (один хід вперед)
-        public event EventHandler BoardUpdated;
-        public event EventHandler<string> MoveMade;
-        public event EventHandler<string> GameEnded;
-
+        public event EventHandler? BoardUpdated;
+        public event EventHandler? MoveMade;
+        public event EventHandler? GameEnded;
+        public Board Board
+        {
+            get { return _board; }
+        }
         public GameLogic()
         {
             _board = new Board();
@@ -27,7 +29,6 @@ namespace ChessTrainer
             set { _computerDifficulty = value; }
         }
 
-
         public ObservableCollection<BoardCell> GetCurrentBoard()
         {
             var boardCells = new ObservableCollection<BoardCell>();
@@ -36,9 +37,7 @@ namespace ChessTrainer
                 for (int col = 0; col < 8; col++)
                 {
                     Piece? piece = _board.GetPiece(row, col);
-                    string? pieceSymbol = GetPieceSymbol(piece);
-                    string? pieceColor = piece?.Color;
-                    boardCells.Add(new BoardCell(row, col, (row + col) % 2 == 0 ? Brushes.LightGray : Brushes.White, pieceSymbol, pieceColor));
+                    boardCells.Add(new BoardCell(row, col, (row + col) % 2 == 0 ? Brushes.LightGray : Brushes.White, piece)); // Передаємо об'єкт Piece
                 }
             }
             return boardCells;
@@ -46,13 +45,29 @@ namespace ChessTrainer
 
         public bool TryMovePiece(int startRow, int startCol, int endRow, int endCol)
         {
+
             if (_board.IsValidMove(startRow, startCol, endRow, endCol, _currentPlayer))
             {
+                
                 Piece? movedPiece = _board.GetPiece(startRow, startCol);
                 Piece? capturedPiece = _board.GetPiece(endRow, endCol);
                 _board.MovePiece(startRow, startCol, endRow, endCol);
                 string moveNotation = GetMoveNotation(movedPiece, startCol, startRow, endCol, endRow, capturedPiece);
-                MoveMade?.Invoke(this, moveNotation);
+                MoveMade?.Invoke(this, EventArgs.Empty);
+                // Перевірка на підвищення пішака
+                if (movedPiece?.Type == "pawn" &&
+                    ((movedPiece.Color == "white" && startRow == 1 && endRow == 0) || // Білий пішак з 2-ї на 8-у
+                     (movedPiece.Color == "black" && startRow == 6 && endRow == 7))) // Чорний пішак з 7-ї на 1-у
+                {
+                    // Тут потрібно запропонувати гравцеві вибрати фігуру для підвищення
+                    // Для прикладу, автоматично підвищуємо до ферзя
+                    string promotionPieceType = "queen"; // За замовчуванням - ферзь
+
+                    _board.SetPiece(endRow, endCol, new Piece(movedPiece.Color, promotionPieceType));
+
+                    // Оновити UI після підвищення
+                    BoardUpdated?.Invoke(this, EventArgs.Empty);
+                }
 
                 string opponentColor = (_currentPlayer == "white") ? "black" : "white";
                 int opponentKingRow = -1;
@@ -78,7 +93,7 @@ namespace ChessTrainer
 
                 if (capturedPiece != null && capturedPiece.Type == "king")
                 {
-                    GameEnded?.Invoke(this, $"{(_currentPlayer == "white" ? "Білі" : "Чорні")} виграли!");
+                    GameEnded?.Invoke(this, EventArgs.Empty); // Використовуємо EventArgs.Empty
                     return true; // Гра закінчена
                 }
 
@@ -86,11 +101,11 @@ namespace ChessTrainer
                 {
                     if (_board.IsKingInCheck(opponentKingRow, opponentKingCol, _currentPlayer))
                     {
-                        GameEnded?.Invoke(this, $"{(_currentPlayer == "white" ? "Білі" : "Чорні")} оголосили мат!");
+                        GameEnded?.Invoke(this, EventArgs.Empty); // Використовуємо EventArgs.Empty
                     }
                     else
                     {
-                        GameEnded?.Invoke(this, "Пат!");
+                        GameEnded?.Invoke(this, EventArgs.Empty); // Використовуємо EventArgs.Empty
                     }
                     return true; // Гра закінчена через мат або пат
                 }
@@ -127,14 +142,14 @@ namespace ChessTrainer
                     Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
                     string moveNotation = GetMoveNotation(movedPiece, selectedMove.StartCol, selectedMove.StartRow, selectedMove.EndCol, selectedMove.EndRow, capturedPiece);
                     _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
-                    MoveMade?.Invoke(this, moveNotation);
+                    MoveMade?.Invoke(this, EventArgs.Empty);
                     SwitchPlayer();
                     BoardUpdated?.Invoke(this, EventArgs.Empty);
                 }
             }
         }
 
-        private Move? GetBestMoveMinimax(List<Move> possibleMoves, int depth, bool maximizingPlayer)
+        private Move? GetBestMoveMinimax(System.Collections.Generic.List<Move> possibleMoves, int depth, bool maximizingPlayer)
         {
             if (depth == 0 || IsGameOver())
             {
@@ -208,7 +223,7 @@ namespace ChessTrainer
 
             if (opponentKingRow != -1 && _board.GetAllPossibleMovesForPlayer(opponentColor).Count == 0)
             {
-                return true; // Мат або пат
+                return true;
             }
             return false;
         }
@@ -248,7 +263,7 @@ namespace ChessTrainer
                 "rook" => "R",
                 "queen" => "Q",
                 "king" => "K",
-                _ => "" // Пішаки не мають префіксу
+                _ => ""
             };
 
             string capture = capturedPiece != null ? "x" : "";
@@ -301,4 +316,3 @@ namespace ChessTrainer
         }
     }
 }
-

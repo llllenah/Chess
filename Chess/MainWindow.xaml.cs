@@ -17,7 +17,40 @@ namespace ChessTrainer
 {
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
+        private bool _isGameActive = true;
+        public bool IsGameActive
+        {
+            get { return _isGameActive; }
+            set
+            {
+                if (_isGameActive != value)
+                {
+                    _isGameActive = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _gameResultText = "";
+        public string GameResultText
+        {
+            get { return _gameResultText; }
+            set
+            {
+                if (_gameResultText != value)
+                {
+                    _gameResultText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
 
         private ObservableCollection<BoardCell> _board = new ObservableCollection<BoardCell>();
         public ObservableCollection<BoardCell> Board
@@ -60,21 +93,35 @@ namespace ChessTrainer
             _gameLogic = new GameLogic();
             _gameLogic.BoardUpdated += _gameLogic_BoardUpdated;
             _gameLogic.MoveMade += _gameLogic_MoveMade;
+            _gameLogic.GameEnded += _gameLogic_GameEnded; // Переконайтеся, що цей рядок є
             Board = _gameLogic.GetCurrentBoard();
             DataContext = this;
             InitializeTimers();
             StartTimers();
             UpdateStatusText();
-
             DifficultyComboBox.SelectedIndex = 0; // За замовчуванням - Легкий
         }
 
-        private void _gameLogic_MoveMade(object? sender, string move)
+        private void _gameLogic_MoveMade(object? sender, EventArgs e)
         {
-            Dispatcher.Invoke(() =>
-            {
-                UpdateMoveHistory(move);
-            });
+            // Оновити відображення дошки
+            Board = _gameLogic.GetCurrentBoard();
+            OnPropertyChanged(nameof(Board)); // Якщо Board є властивістю, прив'язаною до UI
+
+            // Оновити статус гри (чий зараз хід)
+            UpdateStatusText();
+
+            // Можливо, відтворити звук ходу
+            // System.Media.SoundPlayer player = new System.Media.SoundPlayer(@"C:\path\to\move.wav");
+            // player.Play();
+
+            // Якщо ви використовуєте власні EventArgs для передачі нотації ходу:
+            // if (e is MoveMadeEventArgs moveArgs)
+            // {
+            //     string moveNotation = moveArgs.MoveNotation;
+            //     // Додати нотацію ходу до списку ходів на UI
+            //     MoveList.Add(moveNotation); // Якщо MoveList є ObservableCollection<string>
+            // }
         }
 
         private void _gameLogic_BoardUpdated(object? sender, EventArgs e)
@@ -84,13 +131,55 @@ namespace ChessTrainer
                 UpdateBoardUI();
             });
         }
-        private void _gameLogic_GameEnded(object? sender, string message)
+        private void _gameLogic_GameEnded(object? sender, EventArgs e)
         {
-            Dispatcher.Invoke(() =>
+            // Встановити прапорець, що гра завершена
+            IsGameActive = false;
+            OnPropertyChanged(nameof(IsGameActive));
+
+            string resultMessage = "Гра завершена!";
+
+            if (sender is GameLogic gameLogic)
             {
-                MessageBox.Show(message, "Кінець гри", MessageBoxButton.OK, MessageBoxImage.Information);
-                // Можливо, тут ви захочете запропонувати почати нову гру
-            });
+                string currentPlayer = gameLogic.GetCurrentPlayer() == "white" ? "Білі" : "Чорні";
+                string opponentColor = gameLogic.GetCurrentPlayer() == "white" ? "Чорні" : "Білі";
+                Piece?[,] currentBoardPieces = gameLogic.Board.GetPieces(); // Отримуємо масив Piece[,] з Board
+
+                // Перевірка на мат
+                int opponentKingRow = -1, opponentKingCol = -1;
+                for (int r = 0; r < 8; r++)
+                {
+                    for (int c = 0; c < 8; c++)
+                    {
+                        if (currentBoardPieces[r, c]?.Color == opponentColor && currentBoardPieces[r, c]?.Type == "king")
+                        {
+                            opponentKingRow = r;
+                            opponentKingCol = c;
+                            break;
+                        }
+                    }
+                    if (opponentKingRow != -1) break;
+                }
+
+                if (opponentKingRow != -1 && gameLogic.Board.IsKingInCheck(opponentKingRow, opponentKingCol, currentPlayer)) // Викликаємо метод на gameLogic.Board
+                {
+                    resultMessage = $"{currentPlayer} оголосили мат!";
+                }
+                else if (gameLogic.Board.GetAllPossibleMovesForPlayer(opponentColor).Count == 0) // Викликаємо метод на gameLogic.Board
+                {
+                    resultMessage = "Пат!";
+                }
+                // Ось виправлений рядок:
+                else if (!gameLogic.GetCurrentBoard().Any(cell => cell.Piece?.Type == "king" && cell.Piece.Color == opponentColor))
+                {
+                    resultMessage = $"{currentPlayer} виграли!"; // Захоплення короля
+                }
+            }
+
+            GameResultText = resultMessage;
+            OnPropertyChanged(nameof(GameResultText));
+
+            // Додаткові дії після завершення гри
         }
         private void UpdateBoardUI()
         {
@@ -114,12 +203,17 @@ namespace ChessTrainer
         private void ClearBoard_Click(object sender, RoutedEventArgs e)
         {
             _gameLogic = new GameLogic();
+            _gameLogic.BoardUpdated += _gameLogic_BoardUpdated;
+            _gameLogic.MoveMade += _gameLogic_MoveMade;
+            _gameLogic.GameEnded += _gameLogic_GameEnded;
             UpdateBoardUI();
             MoveHistory.Clear();
             _currentPlayer = "white";
             UpdateStatusText();
             ResetTimers();
-            StartTimers();
+            _whiteTimer?.Start();
+            _blackTimer?.Stop();// Запускаємо білий таймер на початку нової гри
+            _isTimerRunning = true;
         }
 
         private void SetTwoPlayersMode_Click(object sender, RoutedEventArgs e)
@@ -197,10 +291,12 @@ namespace ChessTrainer
             if (_currentPlayer == "white")
             {
                 _whiteTimer?.Start();
+                _blackTimer?.Stop();
             }
             else
             {
                 _blackTimer?.Start();
+                _whiteTimer?.Stop();
             }
             _isTimerRunning = true;
         }
@@ -315,10 +411,6 @@ namespace ChessTrainer
         }
 
 
-        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
         private void DifficultyComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (DifficultyComboBox.SelectedItem is ComboBoxItem selectedItem)

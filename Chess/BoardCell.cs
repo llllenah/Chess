@@ -39,35 +39,66 @@ namespace ChessTrainer
             }
         }
 
-        private string? _piece;
-        public string? Piece
+        private Piece? _piece;
+        public Piece? Piece
         {
             get { return _piece; }
             set
             {
                 _piece = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(PieceSymbol));
             }
         }
 
-        private string? _color;
         public string? Color
         {
-            get { return _color; }
-            set
+            get { return Piece?.Color; }
+        }
+
+        public string? PieceSymbol
+        {
+            get
             {
-                _color = value;
-                OnPropertyChanged();
+                if (Piece == null) return null;
+                return Piece.Color == "white" ? GetWhiteSymbol(Piece.Type) : GetBlackSymbol(Piece.Type);
             }
         }
 
-        public BoardCell(int row, int col, Brush? backgroundColor, string? piece, string? color)
+        public BoardCell(int row, int col, Brush? backgroundColor, Piece? piece)
         {
             Row = row;
             Col = col;
             BackgroundColor = backgroundColor;
             Piece = piece;
-            Color = color;
+        }
+
+        private string GetWhiteSymbol(string type)
+        {
+            return type switch
+            {
+                "pawn" => "♙",
+                "rook" => "♖",
+                "knight" => "♘",
+                "bishop" => "♗",
+                "queen" => "♕",
+                "king" => "♔",
+                _ => ""
+            };
+        }
+
+        private string GetBlackSymbol(string type)
+        {
+            return type switch
+            {
+                "pawn" => "♟",
+                "rook" => "♜",
+                "knight" => "♞",
+                "bishop" => "♝",
+                "queen" => "♛",
+                "king" => "♚",
+                _ => ""
+            };
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
