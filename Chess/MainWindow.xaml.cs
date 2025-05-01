@@ -218,6 +218,7 @@ namespace ChessTrainer
 
         private void SetTwoPlayersMode_Click(object sender, RoutedEventArgs e)
         {
+            ClearBoard_Click(sender, e);
             _isTwoPlayersMode = true;
             _isComputerMode = false;
             _gameLogic.SetComputerMode(false);
@@ -229,13 +230,15 @@ namespace ChessTrainer
 
         private void SetComputerMode_Click(object sender, RoutedEventArgs e)
         {
+            ClearBoard_Click(sender, e); // Очищуємо дошку та скидаємо таймери
             _isComputerMode = true;
             _isTwoPlayersMode = false;
             _gameLogic.SetComputerMode(true);
             DifficultyComboBox.Visibility = Visibility.Visible;
             UpdateStatusText();
-            ResetTimers();
-            StartTimers();
+            // ResetTimers(); // ClearBoard_Click вже викликає ResetTimers
+            _currentPlayer = "white"; // Явно встановлюємо хід білих
+            StartTimers(); // Запускаємо таймер для білих
         }
 
         private void SavePosition_Click(object sender, RoutedEventArgs e)

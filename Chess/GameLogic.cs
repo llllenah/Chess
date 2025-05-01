@@ -239,7 +239,7 @@ namespace ChessTrainer
             _currentPlayer = "white"; // Починає завжди білий гравець
             if (_isComputerMode && _currentPlayer == "black")
             {
-                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(MakeComputerMove));
+                MakeComputerMove(); // Викликаємо синхронно
             }
         }
 
@@ -248,9 +248,10 @@ namespace ChessTrainer
             _currentPlayer = _currentPlayer == "white" ? "black" : "white";
             if (_isComputerMode && _currentPlayer == "black")
             {
-                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(MakeComputerMove));
+                MakeComputerMove(); // Викликаємо синхронно
             }
         }
+
 
         private string GetMoveNotation(Piece? piece, int startCol, int startRow, int endCol, int endRow, Piece? capturedPiece)
         {
