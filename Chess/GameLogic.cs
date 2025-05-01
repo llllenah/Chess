@@ -1,6 +1,9 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace ChessTrainer
 {
@@ -9,11 +12,19 @@ namespace ChessTrainer
         private Board _board;
         private string _currentPlayer = "white";
         private bool _isComputerMode = false;
-        private int _computerDifficulty = 1; // Поки що не використовується
+        private int _computerDifficulty = 1; // 1: Легкий (випадковий), 2: Середній (один хід вперед)
+        public event EventHandler BoardUpdated;
+        public event EventHandler<string> MoveMade;
+        public event EventHandler<string> GameEnded;
 
         public GameLogic()
         {
             _board = new Board();
+        }
+        public int ComputerDifficulty
+        {
+            get { return _computerDifficulty; }
+            set { _computerDifficulty = value; }
         }
 
 
@@ -37,9 +48,167 @@ namespace ChessTrainer
         {
             if (_board.IsValidMove(startRow, startCol, endRow, endCol, _currentPlayer))
             {
+                Piece? movedPiece = _board.GetPiece(startRow, startCol);
+                Piece? capturedPiece = _board.GetPiece(endRow, endCol);
                 _board.MovePiece(startRow, startCol, endRow, endCol);
+                string moveNotation = GetMoveNotation(movedPiece, startCol, startRow, endCol, endRow, capturedPiece);
+                MoveMade?.Invoke(this, moveNotation);
+
+                string opponentColor = (_currentPlayer == "white") ? "black" : "white";
+                int opponentKingRow = -1;
+                int opponentKingCol = -1;
+                for (int r = 0; r < 8; r++)
+                {
+                    for (int c = 0; c < 8; c++)
+                    {
+                        if (_board.GetPiece(r, c)?.Color == opponentColor && _board.GetPiece(r, c)?.Type == "king")
+                        {
+                            opponentKingRow = r;
+                            opponentKingCol = c;
+                            break;
+                        }
+                    }
+                    if (opponentKingRow != -1) break;
+                }
+
+                if (opponentKingRow != -1 && _board.IsKingInCheck(opponentKingRow, opponentKingCol, _currentPlayer))
+                {
+                    Console.WriteLine($"{(_currentPlayer == "white" ? "Чорному" : "Білому")} шах!");
+                }
+
+                if (capturedPiece != null && capturedPiece.Type == "king")
+                {
+                    GameEnded?.Invoke(this, $"{(_currentPlayer == "white" ? "Білі" : "Чорні")} виграли!");
+                    return true; // Гра закінчена
+                }
+
+                if (_board.GetAllPossibleMovesForPlayer(opponentColor).Count == 0)
+                {
+                    if (_board.IsKingInCheck(opponentKingRow, opponentKingCol, _currentPlayer))
+                    {
+                        GameEnded?.Invoke(this, $"{(_currentPlayer == "white" ? "Білі" : "Чорні")} оголосили мат!");
+                    }
+                    else
+                    {
+                        GameEnded?.Invoke(this, "Пат!");
+                    }
+                    return true; // Гра закінчена через мат або пат
+                }
+
                 SwitchPlayer();
+                BoardUpdated?.Invoke(this, EventArgs.Empty);
+
                 return true;
+            }
+            return false;
+        }
+
+        private void MakeComputerMove()
+        {
+            var possibleMoves = _board.GetAllPossibleMovesForPlayer("black");
+            if (possibleMoves.Any())
+            {
+                Move? selectedMove = null;
+                var random = new System.Random();
+
+                if (_computerDifficulty == 1) // Легкий рівень: випадковий хід
+                {
+                    selectedMove = possibleMoves[random.Next(possibleMoves.Count)];
+                }
+                else if (_computerDifficulty == 2) // Середній рівень: Minimax глибини 1
+                {
+                    selectedMove = GetBestMoveMinimax(possibleMoves, 1, false); // false тому що оцінюємо з точки зору білих на наступному ході
+                }
+                // Для складного рівня потрібно буде реалізувати Minimax з більшою глибиною
+
+                if (selectedMove != null)
+                {
+                    Piece? movedPiece = _board.GetPiece(selectedMove.StartRow, selectedMove.StartCol);
+                    Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
+                    string moveNotation = GetMoveNotation(movedPiece, selectedMove.StartCol, selectedMove.StartRow, selectedMove.EndCol, selectedMove.EndRow, capturedPiece);
+                    _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
+                    MoveMade?.Invoke(this, moveNotation);
+                    SwitchPlayer();
+                    BoardUpdated?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
+
+        private Move? GetBestMoveMinimax(List<Move> possibleMoves, int depth, bool maximizingPlayer)
+        {
+            if (depth == 0 || IsGameOver())
+            {
+                return new Move(-1, -1, -1, -1) { Score = _board.EvaluateBoard() };
+            }
+
+            if (maximizingPlayer) // Білі намагаються максимізувати рахунок
+            {
+                int maxEval = int.MinValue;
+                Move? bestMove = null;
+                foreach (var move in possibleMoves)
+                {
+                    Board tempBoard = new Board(_board.GetPieces());
+                    tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
+                    GameLogic tempGameLogic = new GameLogic { _board = tempBoard }; // Створюємо тимчасову GameLogic для оцінки
+                    var nextPossibleMoves = tempBoard.GetAllPossibleMovesForPlayer("white");
+                    var result = tempGameLogic.GetBestMoveMinimax(nextPossibleMoves, depth - 1, false);
+                    if (result != null)
+                    {
+                        if (result.Score > maxEval)
+                        {
+                            maxEval = result.Score;
+                            bestMove = move;
+                        }
+                    }
+                }
+                return bestMove;
+            }
+            else // Чорні (комп'ютер) намагаються мінімізувати рахунок
+            {
+                int minEval = int.MaxValue;
+                Move? bestMove = null;
+                foreach (var move in possibleMoves)
+                {
+                    Board tempBoard = new Board(_board.GetPieces());
+                    tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
+                    GameLogic tempGameLogic = new GameLogic { _board = tempBoard }; // Створюємо тимчасову GameLogic для оцінки
+                    var nextPossibleMoves = tempBoard.GetAllPossibleMovesForPlayer("black");
+                    var result = tempGameLogic.GetBestMoveMinimax(nextPossibleMoves, depth - 1, true);
+                    if (result != null)
+                    {
+                        if (result.Score < minEval)
+                        {
+                            minEval = result.Score;
+                            bestMove = move;
+                        }
+                    }
+                }
+                return bestMove;
+            }
+        }
+
+        private bool IsGameOver()
+        {
+            string opponentColor = (_currentPlayer == "white") ? "black" : "white";
+            int opponentKingRow = -1;
+            int opponentKingCol = -1;
+            for (int r = 0; r < 8; r++)
+            {
+                for (int c = 0; c < 8; c++)
+                {
+                    if (_board.GetPiece(r, c)?.Color == opponentColor && _board.GetPiece(r, c)?.Type == "king")
+                    {
+                        opponentKingRow = r;
+                        opponentKingCol = c;
+                        break;
+                    }
+                }
+                if (opponentKingRow != -1) break;
+            }
+
+            if (opponentKingRow != -1 && _board.GetAllPossibleMovesForPlayer(opponentColor).Count == 0)
+            {
+                return true; // Мат або пат
             }
             return false;
         }
@@ -53,6 +222,10 @@ namespace ChessTrainer
         {
             _isComputerMode = isComputerMode;
             _currentPlayer = "white"; // Починає завжди білий гравець
+            if (_isComputerMode && _currentPlayer == "black")
+            {
+                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(MakeComputerMove));
+            }
         }
 
         private void SwitchPlayer()
@@ -60,49 +233,38 @@ namespace ChessTrainer
             _currentPlayer = _currentPlayer == "white" ? "black" : "white";
             if (_isComputerMode && _currentPlayer == "black")
             {
-                MakeComputerMove();
+                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(MakeComputerMove));
             }
         }
 
-        private void MakeComputerMove()
+        private string GetMoveNotation(Piece? piece, int startCol, int startRow, int endCol, int endRow, Piece? capturedPiece)
         {
-            // ТУТ БУДЕ ЛОГІКА КОМП'ЮТЕРНОГО ГРАВЦЯ
-            // Наразі робимо випадковий допустимий хід
-            var possibleMoves = GetPossibleMoves("black");
-            if (possibleMoves.Any())
+            if (piece == null) return "";
+
+            string pieceNotation = piece.Type switch
             {
-                var random = new System.Random();
-                var move = possibleMoves[random.Next(possibleMoves.Count)];
-                _board.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
-                SwitchPlayer();
-                // Потрібно оновити UI після ходу комп'ютера
+                "knight" => "N",
+                "bishop" => "B",
+                "rook" => "R",
+                "queen" => "Q",
+                "king" => "K",
+                _ => "" // Пішаки не мають префіксу
+            };
+
+            string capture = capturedPiece != null ? "x" : "";
+            string startFile = ((char)('a' + startCol)).ToString();
+            string startRank = (8 - startRow).ToString();
+            string endFile = ((char)('a' + endCol)).ToString();
+            string endRank = (8 - endRow).ToString();
+
+            if (piece.Type == "pawn" && capture != "")
+            {
+                return $"{startFile}{capture}{endFile}{endRank}";
             }
+
+            return $"{pieceNotation}{startFile}{startRank}{capture}{endFile}{endRank}";
         }
 
-        private List<Move> GetPossibleMoves(string playerColor)
-        {
-            var moves = new List<Move>();
-            for (int startRow = 0; startRow < 8; startRow++)
-            {
-                for (int startCol = 0; startCol < 8; startCol++)
-                {
-                    for (int endRow = 0; endRow < 8; endRow++)
-                    {
-                        for (int endCol = 0; endCol < 8; endCol++)
-                        {
-                            if (startRow != endRow || startCol != endCol)
-                            {
-                                if (_board.IsValidMove(startRow, startCol, endRow, endCol, playerColor))
-                                {
-                                    moves.Add(new Move(startRow, startCol, endRow, endCol));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return moves;
-        }
 
         private string? GetPieceSymbol(Piece? piece)
         {
@@ -138,20 +300,5 @@ namespace ChessTrainer
             };
         }
     }
-
-    public class Move
-    {
-        public int StartRow { get; }
-        public int StartCol { get; }
-        public int EndRow { get; }
-        public int EndCol { get; }
-
-        public Move(int startRow, int startCol, int endRow, int endCol)
-        {
-            StartRow = startRow;
-            StartCol = startCol;
-            EndRow = endRow;
-            EndCol = endCol;
-        }
-    }
 }
+

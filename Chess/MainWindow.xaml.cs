@@ -58,16 +58,57 @@ namespace ChessTrainer
         {
             InitializeComponent();
             _gameLogic = new GameLogic();
+            _gameLogic.BoardUpdated += _gameLogic_BoardUpdated;
+            _gameLogic.MoveMade += _gameLogic_MoveMade;
             Board = _gameLogic.GetCurrentBoard();
             DataContext = this;
             InitializeTimers();
             StartTimers();
             UpdateStatusText();
+
+            DifficultyComboBox.SelectedIndex = 0; // За замовчуванням - Легкий
         }
 
+        private void _gameLogic_MoveMade(object? sender, string move)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                UpdateMoveHistory(move);
+            });
+        }
+
+        private void _gameLogic_BoardUpdated(object? sender, EventArgs e)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                UpdateBoardUI();
+            });
+        }
+        private void _gameLogic_GameEnded(object? sender, string message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                MessageBox.Show(message, "Кінець гри", MessageBoxButton.OK, MessageBoxImage.Information);
+                // Можливо, тут ви захочете запропонувати почати нову гру
+            });
+        }
         private void UpdateBoardUI()
         {
             Board = _gameLogic.GetCurrentBoard();
+        }
+
+        private void UpdateMoveHistory(string move)
+        {
+            MoveHistory.Add(move);
+            MoveHistoryListBox.Items.Add(move);
+            MoveHistoryListBox.ScrollIntoView(move);
+        }
+
+        private string GetSquareNotation(int col, int row)
+        {
+            char file = (char)('a' + col);
+            int rank = 8 - row;
+            return $"{file}{rank}";
         }
 
         private void ClearBoard_Click(object sender, RoutedEventArgs e)
@@ -113,12 +154,6 @@ namespace ChessTrainer
             // Логіка завантаження позиції (потрібно оновити з урахуванням нових класів)
         }
 
-        private void UpdateMoveHistory(string move)
-        {
-            MoveHistory.Add(move);
-            MoveHistoryListBox.Items.Add(move);
-            MoveHistoryListBox.ScrollIntoView(move);
-        }
 
         private void SwitchPlayer()
         {
@@ -279,16 +314,28 @@ namespace ChessTrainer
             return $"{startSquare}-{endSquare}";
         }
 
-        private string GetSquareNotation(int col, int row)
-        {
-            char file = (char)('a' + col);
-            int rank = 8 - row;
-            return $"{file}{rank}";
-        }
 
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+        private void DifficultyComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DifficultyComboBox.SelectedItem is ComboBoxItem selectedItem)
+            {
+                if (selectedItem.Content.ToString() == "Легкий")
+                {
+                    _gameLogic.ComputerDifficulty = 1;
+                }
+                else if (selectedItem.Content.ToString() == "Середній")
+                {
+                    _gameLogic.ComputerDifficulty = 2;
+                }
+                else if (selectedItem.Content.ToString() == "Складний")
+                {
+                    _gameLogic.ComputerDifficulty = 3;
+                }
+            }
         }
     }
 }
