@@ -281,8 +281,14 @@ namespace ChessTrainer
         // Функція збереження (виправлена)
         private void SavePosition_Click(object sender, RoutedEventArgs e)
         {
+            // Генеруємо ім'я файлу на основі поточної дати та часу
+            string dateTimeString = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            string fileName = $"шахи_{dateTimeString}.ches";
+
             SaveFileDialog saveFileDialog = new SaveFileDialog();
+            saveFileDialog.FileName = fileName; // Встановлюємо згенероване ім'я за замовчуванням
             saveFileDialog.Filter = "Chess Position File (*.ches)|*.ches";
+
             if (saveFileDialog.ShowDialog() == true)
             {
                 try
@@ -295,7 +301,7 @@ namespace ChessTrainer
                             string rowString = "";
                             for (int col = 0; col < 8; col++)
                             {
-                                BoardCell cell = Board.FirstOrDefault(c => c.Row == row && c.Col == col);
+                                BoardCell? cell = Board.FirstOrDefault(c => c.Row == row && c.Col == col);
                                 if (cell != null && cell.Piece != null)
                                 {
                                     // Перший символ - колір (w для білих, b для чорних)
@@ -326,14 +332,17 @@ namespace ChessTrainer
                         // Зберігаємо поточного гравця
                         writer.WriteLine($"CurrentPlayer:{_currentPlayer}");
 
-                        // Зберігаємо історію ходів
-                        writer.WriteLine("MoveHistory:");
-                        foreach (var move in MoveHistory)
+                        // Зберігаємо історію ходів (якщо MoveHistory є властивістю вашого класу)
+                        if (MoveHistory != null)
                         {
-                            writer.WriteLine(move);
+                            writer.WriteLine("MoveHistory:");
+                            foreach (var move in MoveHistory)
+                            {
+                                writer.WriteLine(move);
+                            }
                         }
 
-                        MessageBox.Show("Позицію збережено.", "Збереження");
+                        MessageBox.Show($"Позицію збережено.", "Збереження");
                     }
                 }
                 catch (Exception ex)
