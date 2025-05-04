@@ -455,6 +455,10 @@ namespace ChessTrainer
                 }
             }
         }
+        public Piece?[,] GetRawPieces()
+        {
+            return _pieces;
+        }
 
         public BoardCell[,] GetBoardCells()
         {

@@ -7,6 +7,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using System.Windows.Input;
+using Microsoft.Win32;
+using System.IO;
 
 namespace ChessTrainer
 {
@@ -276,29 +278,239 @@ namespace ChessTrainer
             }
         }
 
+        // Функція збереження (виправлена)
         private void SavePosition_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Функціонал збереження позиції буде реалізовано.", "Збереження");
-            // Логіка збереження позиції
+            SaveFileDialog saveFileDialog = new SaveFileDialog();
+            saveFileDialog.Filter = "Chess Position File (*.ches)|*.ches";
+            if (saveFileDialog.ShowDialog() == true)
+            {
+                try
+                {
+                    using (StreamWriter writer = new StreamWriter(saveFileDialog.FileName))
+                    {
+                        // Зберігаємо конфігурацію дошки
+                        for (int row = 0; row < 8; row++)
+                        {
+                            string rowString = "";
+                            for (int col = 0; col < 8; col++)
+                            {
+                                BoardCell cell = Board.FirstOrDefault(c => c.Row == row && c.Col == col);
+                                if (cell != null && cell.Piece != null)
+                                {
+                                    // Перший символ - колір (w для білих, b для чорних)
+                                    char colorChar = cell.Piece.Color == "white" ? 'w' : 'b';
+
+                                    // Другий символ - тип фігури
+                                    char typeChar = cell.Piece.Type switch
+                                    {
+                                        "pawn" => 'p',
+                                        "rook" => 'r',
+                                        "knight" => 'n',
+                                        "bishop" => 'b',
+                                        "queen" => 'q',
+                                        "king" => 'k',
+                                        _ => '.'
+                                    };
+
+                                    rowString += $"{colorChar}{typeChar}";
+                                }
+                                else
+                                {
+                                    rowString += ".."; // Використовуємо два символи для порожніх клітинок для узгодженості
+                                }
+                            }
+                            writer.WriteLine(rowString);
+                        }
+
+                        // Зберігаємо поточного гравця
+                        writer.WriteLine($"CurrentPlayer:{_currentPlayer}");
+
+                        // Зберігаємо історію ходів
+                        writer.WriteLine("MoveHistory:");
+                        foreach (var move in MoveHistory)
+                        {
+                            writer.WriteLine(move);
+                        }
+
+                        MessageBox.Show("Позицію збережено.", "Збереження");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Помилка при збереженні позиції: {ex.Message}", "Помилка");
+                }
+            }
         }
 
+        // Функція завантаження (виправлена)
         private void LoadPosition_Click(object sender, RoutedEventArgs e)
         {
-            // Тимчасова логіка завантаження (потрібно замінити)
-            Piece?[,] loadedBoardState = _gameLogic.Board.GetPieces();
-            string loadedCurrentPlayer = _currentPlayer;
-            ObservableCollection<string> loadedMoveHistory = new ObservableCollection<string>(MoveHistory);
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+            openFileDialog.Filter = "Chess Position File (*.ches)|*.ches";
+            if (openFileDialog.ShowDialog() == true)
+            {
+                try
+                {
+                    string[] lines = File.ReadAllLines(openFileDialog.FileName);
+                    if (lines.Length >= 8)
+                    {
+                        Piece?[,] loadedBoardState = new Piece?[8, 8];
 
-            _gameLogic.LoadGame(loadedBoardState, loadedCurrentPlayer);
-            Board = _gameLogic.GetCurrentBoard();
-            _currentPlayer = loadedCurrentPlayer;
-            UpdateStatusText();
-            UpdateMoveHistoryFromLoaded(loadedMoveHistory);
-            _isPositionLoaded = true;
-            _firstMoveAfterLoad = true;
-            ResetTimers();
-            StartTimers();
-            MessageBox.Show("Позицію гри завантажено (тимчасово поточну).", "Завантаження");
+                        // Зчитуємо конфігурацію дошки
+                        for (int row = 0; row < 8; row++)
+                        {
+                            string line = lines[row];
+
+                            // Перевіряємо чи лінія містить правильну кількість символів
+                            // Якщо старий формат - очікуємо 8 символів (по 1 на клітинку)
+                            // Якщо новий формат - очікуємо 16 символів (по 2 на клітинку)
+                            if (line.Length == 8 || line.Length == 16)
+                            {
+                                for (int col = 0; col < 8; col++)
+                                {
+                                    Piece? piece = null;
+
+                                    if (line.Length == 8) // Старий формат
+                                    {
+                                        string pieceCode = line[col].ToString();
+                                        piece = DecodePiece(pieceCode);
+                                    }
+                                    else if (line.Length == 16) // Новий формат (2 символи на клітинку)
+                                    {
+                                        int idx = col * 2;
+                                        string pieceCode = line.Substring(idx, 2);
+
+                                        // Якщо не порожня клітинка
+                                        if (pieceCode != ".." && pieceCode.Length == 2)
+                                        {
+                                            char colorChar = pieceCode[0];
+                                            char typeChar = pieceCode[1];
+
+                                            string color = colorChar == 'w' ? "white" : (colorChar == 'b' ? "black" : "");
+                                            string type = typeChar switch
+                                            {
+                                                'p' => "pawn",
+                                                'r' => "rook",
+                                                'n' => "knight",
+                                                'b' => "bishop",
+                                                'q' => "queen",
+                                                'k' => "king",
+                                                _ => ""
+                                            };
+
+                                            if (!string.IsNullOrEmpty(color) && !string.IsNullOrEmpty(type))
+                                            {
+                                                piece = new Piece(color, type);
+                                            }
+                                        }
+                                    }
+
+                                    loadedBoardState[row, col] = piece;
+                                }
+                            }
+                            else
+                            {
+                                MessageBox.Show("Файл пошкоджено (неправильний формат дошки).", "Помилка");
+                                return;
+                            }
+                        }
+
+                        // Зчитуємо поточного гравця та історію ходів
+                        string loadedCurrentPlayer = "white";
+                        ObservableCollection<string> loadedMoveHistory = new ObservableCollection<string>();
+
+                        for (int i = 8; i < lines.Length; i++)
+                        {
+                            if (lines[i].StartsWith("CurrentPlayer:"))
+                            {
+                                loadedCurrentPlayer = lines[i].Substring("CurrentPlayer:".Length);
+                            }
+                            else if (lines[i] == "MoveHistory:")
+                            {
+                                // Наступні рядки - це історія ходів
+                            }
+                            else if (!string.IsNullOrWhiteSpace(lines[i]))
+                            {
+                                loadedMoveHistory.Add(lines[i]);
+                            }
+                        }
+
+                        // Завантажуємо гру
+                        _gameLogic.LoadGame(loadedBoardState, loadedCurrentPlayer);
+                        Board = _gameLogic.GetCurrentBoard();
+                        _currentPlayer = loadedCurrentPlayer;
+                        UpdateStatusText();
+                        UpdateMoveHistoryFromLoaded(loadedMoveHistory);
+                        _isPositionLoaded = true;
+                        _firstMoveAfterLoad = true;
+                        ResetTimers();
+                        StartTimers();
+
+                        MessageBox.Show("Позицію гри завантажено.", "Завантаження");
+                    }
+                    else
+                    {
+                        MessageBox.Show("Файл пошкоджено (замало рядків).", "Помилка");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Помилка при завантаженні позиції: {ex.Message}", "Помилка");
+                }
+            }
+        }
+
+        // Допоміжний метод декодування фігури - залишаємо для сумісності зі старим форматом
+        private Piece? DecodePiece(string code)
+        {
+            if (code == ".") return null;
+            if (code.Length == 1)
+            {
+                // Старий формат - одиночний символ
+                char pieceChar = code[0];
+
+                // Спрощена логіка визначення кольору та типу фігури
+                // (це приблизний приклад, може потребувати коригування)
+                switch (pieceChar)
+                {
+                    case 'P': return new Piece("white", "pawn");
+                    case 'R': return new Piece("white", "rook");
+                    case 'N': return new Piece("white", "knight");
+                    case 'B': return new Piece("white", "bishop");
+                    case 'Q': return new Piece("white", "queen");
+                    case 'K': return new Piece("white", "king");
+                    case 'p': return new Piece("black", "pawn");
+                    case 'r': return new Piece("black", "rook");
+                    case 'n': return new Piece("black", "knight");
+                    case 'b': return new Piece("black", "bishop");
+                    case 'q': return new Piece("black", "queen");
+                    case 'k': return new Piece("black", "king");
+                    default: return null;
+                }
+            }
+            else if (code.Length == 2)
+            {
+                // Новий формат - два символи (колір та тип)
+                string color = code[0] == 'w' ? "white" : (code[0] == 'b' ? "black" : "");
+                string type = code[1] switch
+                {
+                    'p' => "pawn",
+                    'r' => "rook",
+                    'n' => "knight",
+                    'b' => "bishop",
+                    'q' => "queen",
+                    'k' => "king",
+                    _ => ""
+                };
+
+                if (!string.IsNullOrEmpty(color) && !string.IsNullOrEmpty(type))
+                {
+                    return new Piece(color, type);
+                }
+            }
+
+            return null;
         }
 
         private void UpdateMoveHistoryFromLoaded(ObservableCollection<string> loadedHistory)
@@ -310,6 +522,7 @@ namespace ChessTrainer
                 UpdateMoveHistory(move);
             }
         }
+
 
         public void SetBoardColors(Color lightColor, Color darkColor)
         {
