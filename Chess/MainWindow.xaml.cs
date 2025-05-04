@@ -41,6 +41,13 @@ namespace ChessTrainer
         private Color _darkBoardColor = Brushes.White.Color;
         private Point _dragStartPoint;
         private BoardCell? _draggedCell;
+        private bool _isBoardFlipped = false;
+
+        public bool IsBoardFlipped
+        {
+            get => _isBoardFlipped;
+            set => SetProperty(ref _isBoardFlipped, value);
+        }
 
         // --- Властивості ---
         public bool IsGameActive
@@ -205,10 +212,7 @@ namespace ChessTrainer
             );
         }
 
-        private void UpdateBoardUI()
-        {
-            InitializeBoardUI();
-        }
+        
 
         private void UpdateMoveHistory(string move)
         {
@@ -411,15 +415,53 @@ namespace ChessTrainer
 
             _gameLogic.PlayerPlaysBlack = PlayAsBlackRadioButton.IsChecked == true;
             InitializeGame();
+            StartNewGame_Click(sender, e);
         }
 
         private void FlipBoardCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            if (!IsInitialized) return;
+            // Змінюємо стан перевертання
+            IsBoardFlipped = (sender as CheckBox)?.IsChecked ?? false;
 
-            //  _gameLogic.FlipBoardView = FlipBoardCheckBox.IsChecked == true; //  Немає FlipBoardView в GameLogic
+            // Оновлюємо UI дошки після перевертання
             UpdateBoardUI();
         }
+
+        private void UpdateBoardUI()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                // Отримуємо дошку з правильною орієнтацією
+                Board = _gameLogic.GetCurrentBoard();
+
+                // Якщо дошка перевернута, міняємо відображення, не змінюючи внутрішню логіку
+                if (IsBoardFlipped)
+                {
+                    // Створюємо новий список клітинок з перевернутими візуальними координатами
+                    var flippedBoard = new ObservableCollection<BoardCell>();
+
+                    for (int row = 7; row >= 0; row--)
+                    {
+                        for (int col = 7; col >= 0; col--)
+                        {
+                            // Знаходимо оригінальну клітинку
+                            var originalCell = Board.FirstOrDefault(c => c.Row == row && c.Col == col);
+                            if (originalCell != null)
+                            {
+                                flippedBoard.Add(originalCell);
+                            }
+                        }
+                    }
+
+                    // Оновлюємо відображення перевернутої дошки
+                    Board = flippedBoard;
+                }
+
+                ChessBoardItemsControl.ItemsSource = Board;
+                ChessBoardItemsControl.Items.Refresh();
+            });
+        }
+
 
         private void BoardCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -453,9 +495,13 @@ namespace ChessTrainer
             {
                 string moveNotation = GetMoveNotation(startCell, endCell);
                 UpdateMoveHistory(moveNotation);
-                SwitchPlayer();
+
+                // Оновлюємо _currentPlayer після ходу гравця
+                _currentPlayer = _gameLogic.CurrentPlayer;
+                UpdateStatusText();
                 UpdateBoardUI();
 
+                // Виконуємо хід комп'ютера, якщо потрібно
                 HandleComputerMoveAfterPlayerMove();
             }
         }
@@ -466,11 +512,16 @@ namespace ChessTrainer
             {
                 _firstMoveAfterLoad = false;
                 if (ShowConfirmation("Продовжити гру з поточної позиції проти комп'ютера?\nНатисніть 'Так' для продовження, 'Ні' - для початку нової гри."))
-                { 
+                {
                     _gameLogic.SetComputerMode(true);
                     DifficultyComboBox.Visibility = Visibility.Visible;
                     UpdateStatusText();
-                    if (_currentPlayer == "black" && _isGameActive)
+                    // Перевіряємо чий зараз хід і чи потрібно комп'ютеру ходити
+                    string currentPlayer = _gameLogic.CurrentPlayer;
+                    bool isComputerTurn = (_playerColor == ChessColor.Black && currentPlayer == "white") ||
+                                          (_playerColor == ChessColor.White && currentPlayer == "black");
+
+                    if (isComputerTurn && _isGameActive)
                     {
                         _gameLogic.MakeComputerMove();
                         SwitchPlayer();
@@ -482,11 +533,19 @@ namespace ChessTrainer
                     SetComputerMode_Click(this, new RoutedEventArgs());
                 }
             }
-            else if (_isComputerMode && _currentPlayer == "black" && _isGameActive)
+            else if (_isComputerMode && _isGameActive)
             {
-                _gameLogic.MakeComputerMove();
-                SwitchPlayer();
-                UpdateBoardUI();
+                // Перевіряємо, чи повинен комп'ютер зробити хід
+                string currentPlayer = _gameLogic.CurrentPlayer;
+                bool isComputerTurn = (_playerColor == ChessColor.Black && currentPlayer == "white") ||
+                                      (_playerColor == ChessColor.White && currentPlayer == "black");
+
+                if (isComputerTurn)
+                {
+                    _gameLogic.MakeComputerMove();
+                    SwitchPlayer();
+                    UpdateBoardUI();
+                }
             }
         }
 
@@ -506,5 +565,7 @@ namespace ChessTrainer
                 };
             }
         }
+
+
     }
 }

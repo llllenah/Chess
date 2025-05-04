@@ -183,46 +183,51 @@ namespace ChessTrainer
             // Визначаємо колір фігур комп'ютера в залежності від того, за кого грає людина
             string computerColor = _playerPlaysBlack ? "white" : "black";
 
-            var possibleMoves = _board.GetAllPossibleMovesForPlayer(computerColor);
-            if (possibleMoves.Any())
+            // Перевіряємо, чи зараз хід комп'ютера
+            if ((_playerPlaysBlack && _currentPlayer == "white") ||
+                (!_playerPlaysBlack && _currentPlayer == "black"))
             {
-                Move? selectedMove = null;
-                var random = new System.Random();
+                var possibleMoves = _board.GetAllPossibleMovesForPlayer(computerColor);
+                if (possibleMoves.Any())
+                {
+                    Move? selectedMove = null;
+                    var random = new System.Random();
 
-                if (_computerDifficulty == 1) // Легкий рівень: випадковий хід
-                {
-                    selectedMove = possibleMoves[random.Next(possibleMoves.Count)];
-                }
-                else if (_computerDifficulty == 2) // Середній рівень: Minimax глибини 1
-                {
-                    selectedMove = GetBestMoveMinimax(possibleMoves, 1, computerColor == "white");
-                }
-                else if (_computerDifficulty == 3) // Складний рівень: Minimax з більшою глибиною
-                {
-                    selectedMove = GetBestMoveMinimax(possibleMoves, 2, computerColor == "white");
-                }
-
-                if (selectedMove != null)
-                {
-                    Piece? movedPiece = _board.GetPiece(selectedMove.StartRow, selectedMove.StartCol);
-                    Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
-                    string moveNotation = GetMoveNotation(movedPiece, selectedMove.StartCol, selectedMove.StartRow, selectedMove.EndCol, selectedMove.EndRow, capturedPiece);
-                    _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
-
-                    // Перевірка на підвищення пішака комп'ютера
-                    if (movedPiece?.Type == "pawn" &&
-                        ((movedPiece.Color == "white" && selectedMove.EndRow == 0) ||
-                         (movedPiece.Color == "black" && selectedMove.EndRow == 7)))
+                    if (_computerDifficulty == 1) // Легкий рівень: випадковий хід
                     {
-                        _board.SetPiece(selectedMove.EndRow, selectedMove.EndCol, new Piece(movedPiece.Color, "queen"));
+                        selectedMove = possibleMoves[random.Next(possibleMoves.Count)];
+                    }
+                    else if (_computerDifficulty == 2) // Середній рівень: Minimax глибини 1
+                    {
+                        selectedMove = GetBestMoveMinimax(possibleMoves, 1, computerColor == "white");
+                    }
+                    else if (_computerDifficulty == 3) // Складний рівень: Minimax з більшою глибиною
+                    {
+                        selectedMove = GetBestMoveMinimax(possibleMoves, 2, computerColor == "white");
                     }
 
-                    MoveMade?.Invoke(this, EventArgs.Empty);
-                    SwitchPlayer();
-                    BoardUpdated?.Invoke(this, EventArgs.Empty);
+                    if (selectedMove != null)
+                    {
+                        Piece? movedPiece = _board.GetPiece(selectedMove.StartRow, selectedMove.StartCol);
+                        Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
+                        string moveNotation = GetMoveNotation(movedPiece, selectedMove.StartCol, selectedMove.StartRow, selectedMove.EndCol, selectedMove.EndRow, capturedPiece);
+                        _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
 
-                    // Перевіряємо на закінчення гри після ходу комп'ютера
-                    CheckGameEnd(computerColor);
+                        // Перевірка на підвищення пішака комп'ютера
+                        if (movedPiece?.Type == "pawn" &&
+                            ((movedPiece.Color == "white" && selectedMove.EndRow == 0) ||
+                             (movedPiece.Color == "black" && selectedMove.EndRow == 7)))
+                        {
+                            _board.SetPiece(selectedMove.EndRow, selectedMove.EndCol, new Piece(movedPiece.Color, "queen"));
+                        }
+
+                        MoveMade?.Invoke(this, EventArgs.Empty);
+                        SwitchPlayer(); // Перемикаємо гравця, але БЕЗ рекурсивного виклику MakeComputerMove
+                        BoardUpdated?.Invoke(this, EventArgs.Empty);
+
+                        // Перевіряємо на закінчення гри після ходу комп'ютера
+                        CheckGameEnd(computerColor);
+                    }
                 }
             }
         }
@@ -357,12 +362,8 @@ namespace ChessTrainer
             _isComputerMode = isComputerMode;
             _currentPlayer = "white"; // Шахи завжди починаються з білих
 
-            // Якщо гравець грає за чорних і увімкнений комп'ютерний режим,
-            // комп'ютер (білі) повинен зробити перший хід
-            if (_isComputerMode && _playerPlaysBlack && _currentPlayer == "white")
-            {
-                MakeComputerMove();
-            }
+            // !!! ВАЖЛИВА ЗМІНА: перший хід комп'ютера тепер викликатиметься з MainWindow
+            // щоб уникнути рекурсивних викликів
         }
 
         public void SwitchPlayerColor()
@@ -375,6 +376,9 @@ namespace ChessTrainer
         {
             _currentPlayer = _currentPlayer == "white" ? "black" : "white";
 
+            // !!! ВИДАЛІТЬ АБО ЗАКОМЕНТУЙТЕ ЦЮ ЧАСТИНУ !!!
+            // Весь блок нижче повинен бути видалений або закоментований
+            /*
             // Викликаємо комп'ютерний хід, якщо увімкнений комп'ютерний режим і зараз хід комп'ютера
             if (_isComputerMode)
             {
@@ -386,6 +390,7 @@ namespace ChessTrainer
                     MakeComputerMove();
                 }
             }
+            */
         }
 
         private string GetMoveNotation(Piece? piece, int startCol, int startRow, int endCol, int endRow, Piece? capturedPiece)
@@ -448,25 +453,6 @@ namespace ChessTrainer
                 "king" => "♚",
                 _ => ""
             };
-        }
-    }
-
-    // Клас для представлення ходу
-    public class Move
-    {
-        public int StartRow { get; set; }
-        public int StartCol { get; set; }
-        public int EndRow { get; set; }
-        public int EndCol { get; set; }
-        public int Score { get; set; }
-
-        public Move(int startRow, int startCol, int endRow, int endCol)
-        {
-            StartRow = startRow;
-            StartCol = startCol;
-            EndRow = endRow;
-            EndCol = endCol;
-            Score = 0;
         }
     }
 

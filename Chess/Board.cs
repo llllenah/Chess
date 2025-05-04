@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows.Media;
 
 namespace ChessTrainer
 {
     public class Board
     {
         private Piece?[,] _pieces = new Piece[8, 8];
+        public event EventHandler? BoardUpdated;
 
         public Board()
         {
@@ -77,6 +79,26 @@ namespace ChessTrainer
                 }
             }
         }
+
+        public void SetBoard(BoardCell[,] boardCells)
+        {
+            _pieces = new Piece[8, 8];
+            for (int row = 0; row < 8; row++)
+            {
+                for (int col = 0; col < 8; col++)
+                {
+                    _pieces[row, col] = boardCells[row, col].Piece?.Clone();
+                }
+            }
+            // Додайте цей виклик, щоб оновити внутрішній стан дошки GameLogic
+            UpdateBoardState();
+        }
+
+        private void UpdateBoardState()
+        {
+            BoardUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
 
         // --- Методи для перевірки атаки ---
 
@@ -432,6 +454,21 @@ namespace ChessTrainer
                     }
                 }
             }
+        }
+
+        public BoardCell[,] GetBoardCells()
+        {
+            BoardCell[,] boardCells = new BoardCell[8, 8];
+            for (int row = 0; row < 8; row++)
+            {
+                for (int col = 0; col < 8; col++)
+                {
+                    // Determine cell color
+                    Brush cellColor = (row + col) % 2 == 0 ? Brushes.White : Brushes.LightGray;
+                    boardCells[row, col] = new BoardCell(row, col, cellColor, _pieces[row, col]);
+                }
+            }
+            return boardCells;
         }
     }
 }
