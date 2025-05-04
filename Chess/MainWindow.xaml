@@ -5,12 +5,16 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ChessTrainer"
         mc:Ignorable="d"
-        Title="Шаховий Тренажер" Height="600" Width="800"
-        WindowStartupLocation="CenterScreen">
+        Title="ChessTrainer" Height="800" Width="1200"
+        MinHeight="600" MinWidth="800">
+    <Window.Resources>
+        <local:PieceConverter x:Key="PieceConverter" />
+    </Window.Resources>
+
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto" MinWidth="600"/>
+            <ColumnDefinition Width="300"/>
             <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
@@ -19,56 +23,90 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Column="0" Grid.Row="0" Margin="10" Orientation="Horizontal" HorizontalAlignment="Left">
-            <Button Content="Очистити дошку" Click="ClearBoard_Click" Margin="0,0,10,0"/>
-            <Button Content="2 гравці" Click="SetTwoPlayersMode_Click" Margin="0,0,10,0"/>
-            <Button Content="Проти комп'ютера" Click="SetComputerMode_Click" Margin="0,0,10,0"/>
-            <ComboBox x:Name="DifficultyComboBox" Width="120" Visibility="Collapsed" Margin="0,0,10,0">
-                <ComboBoxItem Content="Легкий" IsSelected="True"/>
-                <ComboBoxItem Content="Середній"/>
-                <ComboBoxItem Content="Складний"/>
-            </ComboBox>
-            <Button Content="Зберегти" Click="SavePosition_Click" Margin="0,0,10,0"/>
-            <Button Content="Завантажити" Click="LoadPosition_Click"/>
-        </StackPanel>
-
-        <ItemsControl Grid.Column="0" Grid.Row="1" ItemsSource="{Binding Board}" Margin="10" >
+        <ItemsControl x:Name="ChessBoardItemsControl" ItemsSource="{Binding Board}" Grid.Row="1" Grid.Column="0">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="8" Columns="8"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Border Width="70" Height="70" Background="{Binding BackgroundColor}" BorderBrush="Black" BorderThickness="1"
-                            MouseLeftButtonDown="BoardCell_MouseLeftButtonDown"
-                            AllowDrop="True"
-                            DragEnter="BoardCell_DragEnter"
-                            Drop="BoardCell_Drop">
-                        <TextBlock Text="{Binding PieceSymbol}"
-           FontFamily="Segoe UI Symbol"
-           FontSize="48"
-           TextAlignment="Center"
-           VerticalAlignment="Center"/>
+                    <Border Background="{Binding CellColor}" AllowDrop="True"
+                DragEnter="BoardCell_DragEnter" Drop="BoardCell_Drop"
+                MouseLeftButtonDown="BoardCell_MouseLeftButtonDown">
+
+                        <TextBlock
+                FontSize="40"
+                FontFamily="Segoe UI Symbol"
+                FontWeight="Bold"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                TextWrapping="NoWrap">
+
+                <!-- Символ фігури -->
+                            <TextBlock.Text>
+                                <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="text">
+                                    <Binding Path="Piece.Color" />
+                                    <Binding Path="Piece.Type" />
+                                </MultiBinding>
+                            </TextBlock.Text>
+
+                <!-- Колір фігури -->
+                            <TextBlock.Foreground>
+                                <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="fill">
+                                    <Binding Path="Piece.Color" />
+                                    <Binding Path="Piece.Type" />
+                                </MultiBinding>
+                            </TextBlock.Foreground>
+
+                <!-- Ефект обводу (stroke) через TextEffect -->
+                            <TextBlock.TextEffects>
+                                <TextEffect>
+                                    <TextEffect.Foreground>
+                                        <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="stroke">
+                                            <Binding Path="Piece.Color" />
+                                            <Binding Path="Piece.Type" />
+                                        </MultiBinding>
+                                    </TextEffect.Foreground>
+                                </TextEffect>
+                            </TextBlock.TextEffects>
+                        </TextBlock>
+
                     </Border>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <UniformGrid Columns="8" Rows="8"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
+
         </ItemsControl>
 
-        <StackPanel Grid.Column="2" Grid.Row="1" Margin="10" VerticalAlignment="Top">
-            <TextBlock Text="Білий час:" Margin="0,0,0,5"/>
-            <TextBlock x:Name="WhiteTimeTextBlock" Text="00:30:00" FontSize="24"  Margin="0,0,0,10"/>
-            <TextBlock Text="Чорний час:" Margin="0,0,0,5"/>
-            <TextBlock x:Name="BlackTimeTextBlock" Text="00:30:00" FontSize="24"  Margin="0,0,0,20"/>
-            <TextBlock Text="Історія ходів:" Margin="0,0,0,5"/>
-            <ListBox x:Name="MoveHistoryListBox" Height="200" Width="200" />
+        <StackPanel Grid.Column="1" Grid.Row="1" Margin="10">
+            <Button Content="Нова Гра" Click="StartNewGame_Click" Margin="5"/>
+            <Button Content="Очистити Дошку" Click="ClearBoard_Click" Margin="5"/>
+            <Button Content="Режим 2 Гравці" Click="SetTwoPlayersMode_Click" Margin="5"/>
+            <Button Content="Режим проти Комп'ютера" Click="SetComputerMode_Click" Margin="5"/>
+            <ComboBox x:Name="DifficultyComboBox" Margin="5" Visibility="Collapsed" SelectionChanged="DifficultyComboBox_SelectionChanged">
+                <ComboBoxItem Content="Легкий"/>
+                <ComboBoxItem Content="Середній"/>
+                <ComboBoxItem Content="Складний"/>
+            </ComboBox>
+            <Button Content="Зберегти Позицію" Click="SavePosition_Click" Margin="5"/>
+            <Button Content="Завантажити Позицію" Click="LoadPosition_Click" Margin="5"/>
+            <StackPanel Orientation="Horizontal">
+                <RadioButton x:Name="PlayAsWhiteRadioButton" Content="Грати за Білих" IsChecked="True" Checked="PlayerColorRadioButton_Checked" Margin="5"/>
+                <RadioButton x:Name="PlayAsBlackRadioButton" Content="Грати за Чорних" Checked="PlayerColorRadioButton_Checked" Margin="5"/>
+            </StackPanel>
+            <CheckBox x:Name="FlipBoardCheckBox" Content="Перевернути Дошку" Checked="FlipBoardCheckBox_Checked" Unchecked="FlipBoardCheckBox_Checked" Margin="5"/>
         </StackPanel>
 
-        <TextBlock x:Name="StatusTextBlock" Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="3" Text="Статус гри" Margin="10" VerticalAlignment="Bottom"/>
-        <Grid.Resources>
-            <local:ColorConverter x:Key="ColorConverter"/>
-            <local:PieceColorConverter x:Key="PieceColorConverter"/>
-        </Grid.Resources>
+        <TextBlock x:Name="StatusTextBlock" Grid.Column="0" Grid.Row="0" Text="Статус гри" Margin="10"/>
+        <TextBlock x:Name="GameResultTextBlock" Grid.Column="0" Grid.Row="2" Text="{Binding GameResultText}" Margin="10"/>
 
+        <StackPanel Grid.Column="2" Grid.Row="1" Margin="10">
+            <TextBlock Text="Час Білих:" FontWeight="Bold" Margin="5"/>
+            <TextBlock x:Name="WhiteTimeTextBlock" Text="00:30:00" Margin="5"/>
+            <TextBlock Text="Час Чорних:" FontWeight="Bold" Margin="5"/>
+            <TextBlock x:Name="BlackTimeTextBlock" Text="00:30:00" Margin="5"/>
+        </StackPanel>
+
+        <ListBox x:Name="MoveHistoryListBox" Grid.Column="2" Grid.Row="1" Margin="10" Height="200" VerticalAlignment="Bottom"/>
     </Grid>
 </Window>

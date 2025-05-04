@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace ChessTrainer
@@ -9,7 +10,7 @@ namespace ChessTrainer
 
         public Board()
         {
-            InitializeEmptyBoard(); // Початково дошка буде порожньою для тестування
+            InitializeBoard();
         }
 
         public Board(Piece?[,] initialPieces)
@@ -24,15 +25,6 @@ namespace ChessTrainer
             }
         }
 
-        //public Piece? GetPiece(int row, int col)
-        //{
-        //    if (IsValidPosition(row, col))
-        //    {
-        //        return _pieces[row, col];
-        //    }
-        //    return null;
-        //}
-
         public void SetPiece(int row, int col, Piece? piece)
         {
             if (IsValidPosition(row, col))
@@ -46,7 +38,7 @@ namespace ChessTrainer
             return row >= 0 && row < 8 && col >= 0 && col < 8;
         }
 
-        private void InitializeEmptyBoard()
+        public void InitializeBoard()
         {
             // Розміщення білих фігур
             _pieces[7, 0] = new Piece("white", "rook");
@@ -75,6 +67,15 @@ namespace ChessTrainer
             {
                 _pieces[1, i] = new Piece("black", "pawn");
             }
+
+            // Очищаємо порожні клітинки
+            for (int row = 2; row < 6; row++)
+            {
+                for (int col = 0; col < 8; col++)
+                {
+                    _pieces[row, col] = null;
+                }
+            }
         }
 
         // --- Методи для перевірки атаки ---
@@ -87,17 +88,13 @@ namespace ChessTrainer
             return IsValidMoveInternal(attackingRow, attackingCol, targetRow, targetCol);
         }
 
-        // Ця версія дозволяє тимчасово "уявити" іншу фігуру на атакуючій позиції для перевірки
         public bool IsPieceAttackingSquare(int attackingRow, int attackingCol, int targetRow, int targetCol, string attackingColor)
         {
             Piece? originalPiece = GetPiece(attackingRow, attackingCol);
             if (originalPiece == null || originalPiece.Color != attackingColor) return false;
 
-            // Тимчасово "уявляємо" цю фігуру на дошці для перевірки
-            // Важливо: ця зміна не повинна впливати на реальний стан дошки
             Piece tempPiece = new Piece(attackingColor, originalPiece.Type);
 
-            // Перевіряємо, чи може ця фігура (навіть якщо її там зараз немає) атакувати цільову клітинку
             return IsValidMoveInternal(attackingRow, attackingCol, targetRow, targetCol, tempPiece);
         }
 
@@ -122,7 +119,6 @@ namespace ChessTrainer
                     // Атака по діагоналі на одну клітинку
                     if (colDiff == 1 && endRow == startRow + direction && GetPiece(endRow, endCol) != null && GetPiece(endRow, endCol)?.Color != piece.Color)
                         return true;
-                    // en passant (потрібна додаткова логіка для відстеження попереднього ходу)
                     return false;
                 case "rook":
                     if ((rowDiff == 0 && colDiff > 0) || (colDiff == 0 && rowDiff > 0))
@@ -171,7 +167,6 @@ namespace ChessTrainer
             return null;
         }
 
-
         public bool IsKingInCheck(int kingRow, int kingCol, string attackingColor)
         {
             for (int r = 0; r < 8; r++)
@@ -191,7 +186,7 @@ namespace ChessTrainer
             return false;
         }
 
-        // --- Методи для ходів (потрібно буде додати логіку валідації) ---
+        // --- Методи для ходів ---
 
         public void MovePiece(int startRow, int startCol, int endRow, int endCol)
         {
@@ -212,6 +207,7 @@ namespace ChessTrainer
             }
             return tempPieces;
         }
+
         public bool IsValidMove(int startRow, int startCol, int endRow, int endCol, string currentPlayer)
         {
             Piece? piece = GetPiece(startRow, startCol);
@@ -236,8 +232,6 @@ namespace ChessTrainer
             int colDifference = endCol - startCol;
             int absRowDifference = Math.Abs(rowDifference);
             int absColDifference = Math.Abs(colDifference);
-            int rowDir = Math.Sign(rowDifference);
-            int colDir = Math.Sign(colDifference);
 
             // Перевірка правил руху для кожної фігури
             bool isMoveValidAccordingToPieceRules = false;
@@ -336,6 +330,7 @@ namespace ChessTrainer
             }
             return true;
         }
+
         public List<Move> GetAllPossibleMovesForPlayer(string playerColor)
         {
             List<Move> legalMoves = new List<Move>();
@@ -362,6 +357,7 @@ namespace ChessTrainer
             }
             return legalMoves;
         }
+
         public int EvaluateBoard()
         {
             int whiteScore = 0;
@@ -438,23 +434,4 @@ namespace ChessTrainer
             }
         }
     }
-
-    public class Piece
-    {
-        public string Color { get; }
-        public string Type { get; }
-
-        public Piece(string color, string type)
-        {
-            Color = color;
-            Type = type;
-        }
-
-        public Piece Clone()
-        {
-            return new Piece(this.Color, this.Type);
-        }
-    }
-
-   
 }
