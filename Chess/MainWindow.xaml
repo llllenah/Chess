@@ -9,6 +9,7 @@
         MinHeight="600" MinWidth="800">
     <Window.Resources>
         <local:PieceConverter x:Key="PieceConverter" />
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibility"/>
     </Window.Resources>
 
     <Grid>
@@ -90,9 +91,18 @@
             </ComboBox>
             <Button Content="Зберегти Позицію" Click="SavePosition_Click" Margin="5"/>
             <Button Content="Завантажити Позицію" Click="LoadPosition_Click" Margin="5"/>
-            <StackPanel Orientation="Horizontal">
-                <RadioButton x:Name="PlayAsWhiteRadioButton" Content="Грати за Білих" IsChecked="True" Checked="PlayerColorRadioButton_Checked" Margin="5"/>
-                <RadioButton x:Name="PlayAsBlackRadioButton" Content="Грати за Чорних" Checked="PlayerColorRadioButton_Checked" Margin="5"/>
+            <StackPanel Orientation="Horizontal"
+                    Visibility="{Binding IsComputerMode, 
+                                         Converter={StaticResource BooleanToVisibility}}">
+                <RadioButton x:Name="PlayAsWhiteRadioButton" 
+                         Content="Грати за білих" 
+                         IsChecked="True"
+                         Checked="PlayerColorRadioButton_Checked"
+                         Margin="5"/>
+                <RadioButton x:Name="PlayAsBlackRadioButton" 
+                         Content="Грати за чорних"
+                         Checked="PlayerColorRadioButton_Checked"
+                         Margin="5"/>
             </StackPanel>
             <CheckBox x:Name="FlipBoardCheckBox" Content="Перевернути Дошку" Checked="FlipBoardCheckBox_Checked" Unchecked="FlipBoardCheckBox_Checked" Margin="5"/>
         </StackPanel>

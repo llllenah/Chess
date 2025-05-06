@@ -362,8 +362,6 @@ namespace ChessTrainer
             _isComputerMode = isComputerMode;
             _currentPlayer = "white"; // Шахи завжди починаються з білих
 
-            // !!! ВАЖЛИВА ЗМІНА: перший хід комп'ютера тепер викликатиметься з MainWindow
-            // щоб уникнути рекурсивних викликів
         }
 
         public void SwitchPlayerColor()
@@ -375,22 +373,6 @@ namespace ChessTrainer
         private void SwitchPlayer()
         {
             _currentPlayer = _currentPlayer == "white" ? "black" : "white";
-
-            // !!! ВИДАЛІТЬ АБО ЗАКОМЕНТУЙТЕ ЦЮ ЧАСТИНУ !!!
-            // Весь блок нижче повинен бути видалений або закоментований
-            /*
-            // Викликаємо комп'ютерний хід, якщо увімкнений комп'ютерний режим і зараз хід комп'ютера
-            if (_isComputerMode)
-            {
-                bool isComputerTurn = (_playerPlaysBlack && _currentPlayer == "white") ||
-                                     (!_playerPlaysBlack && _currentPlayer == "black");
-
-                if (isComputerTurn)
-                {
-                    MakeComputerMove();
-                }
-            }
-            */
         }
 
         private string GetMoveNotation(Piece? piece, int startCol, int startRow, int endCol, int endRow, Piece? capturedPiece)

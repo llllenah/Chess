@@ -63,6 +63,18 @@ namespace ChessTrainer
             get => _gameResultText;
             set => SetProperty(ref _gameResultText, value);
         }
+        public bool IsComputerMode
+        {
+            get => _isComputerMode;
+            set
+            {
+                //if (_isComputerMode != value)
+                //{
+                    _isComputerMode = value;
+                    OnPropertyChanged(nameof(IsComputerMode));
+                //}
+            }
+        }
 
         public ObservableCollection<BoardCell> Board
         {
@@ -129,7 +141,11 @@ namespace ChessTrainer
         private void OnGameLogicGameEnded(object? sender, EventArgs e)
         {
             IsGameActive = false;
+            StopTimers(); // Зупиняємо таймери
+
             string resultMessage = "Гра завершена!";
+            string title = "Кінець гри";
+            MessageBoxImage icon = MessageBoxImage.Information;
 
             if (sender is GameLogic gameLogic)
             {
@@ -156,6 +172,7 @@ namespace ChessTrainer
                 if (opponentKingRow != -1 && gameLogic.Board.IsKingInCheck(opponentKingRow, opponentKingCol, gameLogic.CurrentPlayer))
                 {
                     resultMessage = $"{currentPlayer} оголосили мат!";
+                    icon = MessageBoxImage.Exclamation; // Змінюємо іконку для мату
                 }
                 else if (gameLogic.Board.GetAllPossibleMovesForPlayer(opponentColor).Count == 0)
                 {
@@ -164,20 +181,38 @@ namespace ChessTrainer
                 else if (!gameLogic.GetCurrentBoard().Any(cell => cell.Piece?.Type == "king" && cell.Piece.Color == opponentColor))
                 {
                     resultMessage = $"{currentPlayer} виграли!"; // Захоплення короля
+                    icon = MessageBoxImage.Information;
                 }
             }
 
-            GameResultText = resultMessage;
-            StopTimers();
+            // Виводимо повідомлення у вікні MessageBox та запитуємо про нову гру
+            MessageBoxResult result = MessageBox.Show(
+                resultMessage + "\n\nХочете почати нову гру?",
+                title,
+                MessageBoxButton.YesNo,
+                icon
+            );
+            MoveHistoryListBox.Items.Clear();
+            if (result == MessageBoxResult.Yes)
+            {
+                StartNewGame_Click(this, new RoutedEventArgs()); // Починаємо нову гру
+            }
+            else
+            {
+                Application.Current.Shutdown(); // Закриваємо програму
+            }
         }
 
         // --- Методи управління грою ---
         private void StartNewGame_Click(object sender, RoutedEventArgs e)
         {
+            MoveHistory.Clear();
+            MoveHistoryListBox.Items.Clear();
             _playerColor = PlayAsWhiteRadioButton.IsChecked == true ? ChessColor.White : ChessColor.Black;
             _gameLogic.PlayerPlaysBlack = _playerColor == ChessColor.Black; // Встановлюємо колір гравця в GameLogic
             InitializeGame();
             InitializeBoardUI();
+            MoveHistoryListBox.Items.Clear();
         }
 
         private void InitializeGame()
@@ -214,7 +249,21 @@ namespace ChessTrainer
             );
         }
 
-        
+        private void EndGame(object sender, RoutedEventArgs e)
+        {
+            if (_isClearingFromComputerMode || ShowConfirmation("Ви впевнені, що хочете очистити дошку та історію ходів?"))
+            {
+                _gameLogic.InitializeGame();
+                UpdateBoardUI();
+                MoveHistory.Clear();
+                MoveHistoryListBox.Items.Clear();
+                _currentPlayer = "white";
+                UpdateStatusText();
+                ResetTimers();
+                StartTimers();
+                _isGameActive = true; // Переконайтеся, що гра активна після очищення
+            }
+        }
 
         private void UpdateMoveHistory(string move)
         {
@@ -232,11 +281,13 @@ namespace ChessTrainer
                 _gameLogic.InitializeGame();
                 UpdateBoardUI();
                 MoveHistory.Clear();
+                MoveHistoryListBox.Items.Clear();
                 _currentPlayer = "white";
                 UpdateStatusText();
                 ResetTimers();
                 StartTimers();
-                _isGameActive = true; // Переконайтеся, що гра активна після очищення
+                _isGameActive = true;
+                MoveHistoryListBox.Items.Clear();// Переконайтеся, що гра активна після очищення
             }
         }
 
@@ -246,10 +297,12 @@ namespace ChessTrainer
         private void SetTwoPlayersMode_Click(object sender, RoutedEventArgs e)
         {
             ClearBoard_Click(sender, e);
+            MoveHistoryListBox.Items.Clear();
             _isTwoPlayersMode = true;
             _isComputerMode = false;
             _gameLogic.SetComputerMode(false);
             DifficultyComboBox.Visibility = Visibility.Collapsed;
+            IsComputerMode = false;
             UpdateStatusText();
             ResetTimers();
             StartTimers();
@@ -269,6 +322,7 @@ namespace ChessTrainer
                 _isTwoPlayersMode = false;
                 _gameLogic.SetComputerMode(true);
                 DifficultyComboBox.Visibility = Visibility.Visible;
+                IsComputerMode = true;
                 UpdateStatusText();
                 _currentPlayer = "white";
                 StartTimers();
@@ -543,7 +597,7 @@ namespace ChessTrainer
         private void SwitchPlayer()
         {
             _currentPlayer = _gameLogic.CurrentPlayer;
-            UpdateStatusText();
+            
             if (_isTimerRunning)
             {
                 _whiteTimer?.Stop();
@@ -551,6 +605,7 @@ namespace ChessTrainer
                 if (_currentPlayer == "white") _whiteTimer?.Start();
                 else _blackTimer?.Start();
             }
+            UpdateStatusText();
         }
 
         private void UpdateStatusText()
@@ -722,6 +777,7 @@ namespace ChessTrainer
                 _currentPlayer = _gameLogic.CurrentPlayer;
                 UpdateStatusText();
                 UpdateBoardUI();
+                SwitchPlayer();
 
                 // Виконуємо хід комп'ютера, якщо потрібно
                 HandleComputerMoveAfterPlayerMove();
