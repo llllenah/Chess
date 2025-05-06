@@ -100,13 +100,21 @@
         <TextBlock x:Name="StatusTextBlock" Grid.Column="0" Grid.Row="0" Text="Статус гри" Margin="10"/>
         <TextBlock x:Name="GameResultTextBlock" Grid.Column="0" Grid.Row="2" Text="{Binding GameResultText}" Margin="10"/>
 
-        <StackPanel Grid.Column="2" Grid.Row="1" Margin="10">
+        <StackPanel Grid.Column="2" Grid.Row="1" Margin="10,10,-133,10" RenderTransformOrigin="0.5,0.5">
+            <StackPanel.RenderTransform>
+                <TransformGroup>
+                    <ScaleTransform/>
+                    <SkewTransform AngleY="-0.452"/>
+                    <RotateTransform/>
+                    <TranslateTransform Y="-0.325"/>
+                </TransformGroup>
+            </StackPanel.RenderTransform>
             <TextBlock Text="Час Білих:" FontWeight="Bold" Margin="5"/>
             <TextBlock x:Name="WhiteTimeTextBlock" Text="00:30:00" Margin="5"/>
             <TextBlock Text="Час Чорних:" FontWeight="Bold" Margin="5"/>
             <TextBlock x:Name="BlackTimeTextBlock" Text="00:30:00" Margin="5"/>
         </StackPanel>
 
-        <ListBox x:Name="MoveHistoryListBox" Grid.Column="2" Grid.Row="1" Margin="10" Height="200" VerticalAlignment="Bottom"/>
+        <ListBox x:Name="MoveHistoryListBox" Grid.Column="1" Grid.Row="1" Margin="5,0,10,10" Height="290" VerticalAlignment="Bottom"/>
     </Grid>
 </Window>
