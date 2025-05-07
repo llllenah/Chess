@@ -335,6 +335,85 @@ namespace ChessTrainer
             return false;
         }
 
+
+        // Add this method to your Board class
+
+        /// <summary>
+        /// Returns a list of valid destination positions for a piece at the given position
+        /// </summary>
+        /// <param name="row">Source row</param>
+        /// <param name="col">Source column</param>
+        /// <returns>List of (row, col) tuples representing valid destinations</returns>
+        public List<(int, int)> GetValidMovesForPiece(int row, int col)
+        {
+            List<(int, int)> validMoves = new List<(int, int)>();
+
+            // Check if there's a piece at the given position
+            Piece? piece = GetPiece(row, col);
+            if (piece == null) return validMoves;
+
+            string pieceColor = piece.Color;
+
+            // Check all cells on the board as potential destinations
+            for (int targetRow = 0; targetRow < 8; targetRow++)
+            {
+                for (int targetCol = 0; targetCol < 8; targetCol++)
+                {
+                    // Skip the source cell itself
+                    if (targetRow == row && targetCol == col) continue;
+
+                    // If the move is valid according to chess rules, add it to the list
+                    if (IsValidMove(row, col, targetRow, targetCol, pieceColor))
+                    {
+                        validMoves.Add((targetRow, targetCol));
+                    }
+                }
+            }
+
+            return validMoves;
+        }
+
+        /// <summary>
+        /// Check if a move from (sourceRow, sourceCol) to (targetRow, targetCol) is valid for the given player color
+        /// </summary>
+        //private bool IsValidMove(int sourceRow, int sourceCol, int targetRow, int targetCol, string playerColor)
+        //{
+        //    // Get the piece at the source position
+        //    Piece? sourcePiece = GetPiece(sourceRow, sourceCol);
+        //    if (sourcePiece == null || sourcePiece.Color != playerColor) return false;
+
+        //    // Get the piece at the target position
+        //    Piece? targetPiece = GetPiece(targetRow, targetCol);
+
+        //    // Can't capture own pieces
+        //    if (targetPiece != null && targetPiece.Color == playerColor) return false;
+
+        //    // Check move validity based on piece type
+        //    switch (sourcePiece.Type)
+        //    {
+        //        case "pawn":
+        //            return IsValidPawnMove(sourceRow, sourceCol, targetRow, targetCol, playerColor);
+        //        case "rook":
+        //            return IsValidRookMove(sourceRow, sourceCol, targetRow, targetCol);
+        //        case "knight":
+        //            return IsValidKnightMove(sourceRow, sourceCol, targetRow, targetCol);
+        //        case "bishop":
+        //            return IsValidBishopMove(sourceRow, sourceCol, targetRow, targetCol);
+        //        case "queen":
+        //            return IsValidQueenMove(sourceRow, sourceCol, targetRow, targetCol);
+        //        case "king":
+        //            return IsValidKingMove(sourceRow, sourceCol, targetRow, targetCol);
+        //        default:
+        //            return false;
+        //    }
+        //}
+
+        // Your existing piece movement validation methods would be used here
+        // Make sure they're accessible from this context
+        // Examples might include:
+        // private bool IsValidPawnMove(int sourceRow, int sourceCol, int targetRow, int targetCol, string playerColor)
+        // private bool IsValidRookMove(int sourceRow, int sourceCol, int targetRow, int targetCol)
+        // etc.
         private bool IsPathClear(int startRow, int startCol, int endRow, int endCol)
         {
             int rowDifference = endRow - startRow;

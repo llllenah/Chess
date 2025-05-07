@@ -35,7 +35,17 @@
                     <Border Background="{Binding CellColor}" AllowDrop="True"
                 DragEnter="BoardCell_DragEnter" Drop="BoardCell_Drop"
                 MouseLeftButtonDown="BoardCell_MouseLeftButtonDown">
-
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                        <Setter Property="BorderBrush" Value="Green"/>
+                                        <Setter Property="BorderThickness" Value="3"/>
+                                        <Setter Property="Opacity" Value="0.9"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <TextBlock
                 FontSize="40"
                 FontFamily="Segoe UI Symbol"

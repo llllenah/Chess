@@ -274,22 +274,22 @@ namespace ChessTrainer
 
         private string GetSquareNotation(int col, int row) => $"{(char)('a' + col)}{8 - row}";
 
-        private void ClearBoard_Click(object sender, RoutedEventArgs e)
-        {
-            if (_isClearingFromComputerMode || ShowConfirmation("Ви впевнені, що хочете очистити дошку та історію ходів?"))
-            {
-                _gameLogic.InitializeGame();
-                UpdateBoardUI();
-                MoveHistory.Clear();
-                MoveHistoryListBox.Items.Clear();
-                _currentPlayer = "white";
-                UpdateStatusText();
-                ResetTimers();
-                StartTimers();
-                _isGameActive = true;
-                MoveHistoryListBox.Items.Clear();// Переконайтеся, що гра активна після очищення
-            }
-        }
+        //private void ClearBoard_Click(object sender, RoutedEventArgs e)
+        //{
+        //    if (_isClearingFromComputerMode || ShowConfirmation("Ви впевнені, що хочете очистити дошку та історію ходів?"))
+        //    {
+        //        _gameLogic.InitializeGame();
+        //        UpdateBoardUI();
+        //        MoveHistory.Clear();
+        //        MoveHistoryListBox.Items.Clear();
+        //        _currentPlayer = "white";
+        //        UpdateStatusText();
+        //        ResetTimers();
+        //        StartTimers();
+        //        _isGameActive = true;
+        //        MoveHistoryListBox.Items.Clear();// Переконайтеся, що гра активна після очищення
+        //    }
+        //}
 
         private bool ShowConfirmation(string message) =>
             MessageBox.Show(message, "Підтвердження", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
@@ -740,16 +740,16 @@ namespace ChessTrainer
         }
 
 
-        private void BoardCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (!(sender is Border clickedBorder) || !(clickedBorder.DataContext is BoardCell clickedCell)) return;
+        //private void BoardCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        //{
+        //    if (!(sender is Border clickedBorder) || !(clickedBorder.DataContext is BoardCell clickedCell)) return;
 
-            _dragStartPoint = e.GetPosition(null);
-            _draggedCell = clickedCell;
+        //    _dragStartPoint = e.GetPosition(null);
+        //    _draggedCell = clickedCell;
 
-            DataObject dragData = new DataObject(typeof(BoardCell), clickedCell);
-            DragDrop.DoDragDrop(clickedBorder, dragData, DragDropEffects.Move);
-        }
+        //    DataObject dragData = new DataObject(typeof(BoardCell), clickedCell);
+        //    DragDrop.DoDragDrop(clickedBorder, dragData, DragDropEffects.Move);
+        //}
 
         private void BoardCell_DragEnter(object sender, DragEventArgs e)
         {
@@ -766,23 +766,23 @@ namespace ChessTrainer
             _draggedCell = null;
         }
 
-        private void TryMove(BoardCell startCell, BoardCell endCell)
-        {
-            if (_gameLogic.TryMovePiece(startCell.Row, startCell.Col, endCell.Row, endCell.Col))
-            {
-                string moveNotation = GetMoveNotation(startCell, endCell);
-                UpdateMoveHistory(moveNotation);
+        //private void TryMove(BoardCell startCell, BoardCell endCell)
+        //{
+        //    if (_gameLogic.TryMovePiece(startCell.Row, startCell.Col, endCell.Row, endCell.Col))
+        //    {
+        //        string moveNotation = GetMoveNotation(startCell, endCell);
+        //        UpdateMoveHistory(moveNotation);
 
-                // Оновлюємо _currentPlayer після ходу гравця
-                _currentPlayer = _gameLogic.CurrentPlayer;
-                UpdateStatusText();
-                UpdateBoardUI();
-                SwitchPlayer();
+        //        // Оновлюємо _currentPlayer після ходу гравця
+        //        _currentPlayer = _gameLogic.CurrentPlayer;
+        //        UpdateStatusText();
+        //        UpdateBoardUI();
+        //        SwitchPlayer();
 
-                // Виконуємо хід комп'ютера, якщо потрібно
-                HandleComputerMoveAfterPlayerMove();
-            }
-        }
+        //        // Виконуємо хід комп'ютера, якщо потрібно
+        //        HandleComputerMoveAfterPlayerMove();
+        //    }
+        //}
 
         private void HandleComputerMoveAfterPlayerMove()
         {
@@ -844,6 +844,109 @@ namespace ChessTrainer
             }
         }
 
+
+        // Add these methods to your MainWindow class
+
+        // Method to clear all highlights
+        private void ClearHighlights()
+        {
+            foreach (var cell in Board)
+            {
+                cell.IsHighlighted = false;
+            }
+        }
+
+        // Method to show valid moves for a selected piece
+        private void ShowValidMovesForPiece(int row, int col)
+        {
+            // Clear any existing highlights first
+            ClearHighlights();
+
+            // Check if there's a piece at the selected position
+            BoardCell? selectedCell = Board.FirstOrDefault(c => c.Row == row && c.Col == col);
+            if (selectedCell?.Piece == null) return;
+
+            // Get the color of the current piece
+            string pieceColor = selectedCell.Piece.Color;
+
+            // Only show valid moves for pieces of the current player's color
+            if (pieceColor != _currentPlayer) return;
+
+            // Get all valid moves for the selected piece
+            var validMoves = _gameLogic.Board.GetValidMovesForPiece(row, col);
+
+            // Highlight valid destination cells
+            foreach (var move in validMoves)
+            {
+                int targetRow = move.Item1;
+                int targetCol = move.Item2;
+
+                BoardCell? targetCell = Board.FirstOrDefault(c => c.Row == targetRow && c.Col == targetCol);
+                if (targetCell != null)
+                {
+                    targetCell.IsHighlighted = true;
+                }
+            }
+        }
+
+        // Update the BoardCell_MouseLeftButtonDown method to show valid moves
+        private void BoardCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!(sender is Border clickedBorder) || !(clickedBorder.DataContext is BoardCell clickedCell)) return;
+
+            // Show valid moves for the clicked piece
+            ShowValidMovesForPiece(clickedCell.Row, clickedCell.Col);
+
+            _dragStartPoint = e.GetPosition(null);
+            _draggedCell = clickedCell;
+
+            DataObject dragData = new DataObject(typeof(BoardCell), clickedCell);
+            DragDrop.DoDragDrop(clickedBorder, dragData, DragDropEffects.Move);
+
+            // Clear highlights after the drag operation
+            ClearHighlights();
+        }
+
+        // Update the TryMove method to clear highlights after a move
+        private void TryMove(BoardCell startCell, BoardCell endCell)
+        {
+            if (_gameLogic.TryMovePiece(startCell.Row, startCell.Col, endCell.Row, endCell.Col))
+            {
+                string moveNotation = GetMoveNotation(startCell, endCell);
+                UpdateMoveHistory(moveNotation);
+
+                // Clear any highlights
+                ClearHighlights();
+
+                // Oновлюємо _currentPlayer після ходу гравця
+                _currentPlayer = _gameLogic.CurrentPlayer;
+                UpdateStatusText();
+                UpdateBoardUI();
+                SwitchPlayer();
+
+                // Виконуємо хід комп'ютера, якщо потрібно
+                HandleComputerMoveAfterPlayerMove();
+            }
+        }
+
+        // Make sure to also clear highlights when starting a new game or resetting the board
+        private void ClearBoard_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isClearingFromComputerMode || ShowConfirmation("Ви впевнені, що хочете очистити дошку та історію ходів?"))
+            {
+                _gameLogic.InitializeGame();
+                UpdateBoardUI();
+                MoveHistory.Clear();
+                MoveHistoryListBox.Items.Clear();
+                _currentPlayer = "white";
+                UpdateStatusText();
+                ResetTimers();
+                StartTimers();
+                _isGameActive = true;
+                MoveHistoryListBox.Items.Clear();
+                ClearHighlights(); // Clear any highlights
+            }
+        }
 
     }
 }

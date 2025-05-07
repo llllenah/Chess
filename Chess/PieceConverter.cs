@@ -30,7 +30,7 @@ namespace ChessTrainer
             switch (mode)
             {
                 case "fill":
-                    return  Brushes.Black;
+                    return Brushes.Black;
 
                 case "stroke":
                     return pieceColor == "white" ? Brushes.Black : Brushes.Transparent;
