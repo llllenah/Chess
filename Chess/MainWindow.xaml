@@ -39,9 +39,22 @@
                             <Style TargetType="Border">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                                        <Setter Property="BorderBrush" Value="Green"/>
-                                        <Setter Property="BorderThickness" Value="3"/>
-                                        <Setter Property="Opacity" Value="0.9"/>
+                                        <!-- Красивая зеленая подсветка с градиентом -->
+                                        <Setter Property="BorderBrush">
+                                            <Setter.Value>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#4CAF50" Offset="0.0" />
+                                                    <GradientStop Color="#8BC34A" Offset="1.0" />
+                                                </LinearGradientBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Setter Property="BorderThickness" Value="3" />
+                                        <!-- Добавим тень для улучшения эффекта -->
+                                        <Setter Property="Effect">
+                                            <Setter.Value>
+                                                <DropShadowEffect Color="#4CAF50" ShadowDepth="0" BlurRadius="10" Opacity="0.7" />
+                                            </Setter.Value>
+                                        </Setter>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
