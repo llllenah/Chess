@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 
@@ -12,7 +14,6 @@ namespace ChessTrainer
         private Board _board;
         private string _currentPlayer = "white";
         private bool _isComputerMode = false;
-        private int _computerDifficulty = 1;
         private bool _playerPlaysBlack = false; // Додаємо можливість грати за чорних
 
         public event EventHandler? BoardUpdated;
@@ -31,12 +32,15 @@ namespace ChessTrainer
             set => _playerPlaysBlack = value;
         }
 
-        public int ComputerDifficulty
+        public enum ComputerDifficulty
         {
-            get => _computerDifficulty;
-            set => _computerDifficulty = value;
+            Random = 1,       // Случайные ходы
+            Easy = 2,         // Minimax глубина 1
+            Medium = 3,       // Alpha-Beta глубина 2
+            Hard = 4,         // Alpha-Beta глубина 3 с параллельным поиском
+            Expert = 5        // Alpha-Beta глубина 4 с параллельным поиском
         }
-
+        public ComputerDifficulty CurrentDifficulty { get; set; } = ComputerDifficulty.Medium;
         public GameLogic()
         {
             _board = new Board();
@@ -178,42 +182,138 @@ namespace ChessTrainer
             return false;
         }
 
+        /// <summary>
+        /// Основной метод для получения лучшего хода с автоматическим выбором алгоритма
+        /// </summary>
+        public Move? GetBestMove(List<Move> possibleMoves, int difficulty, bool maximizingPlayer)
+        {
+            // Если нет возможных ходов
+            if (possibleMoves.Count == 0)
+                return null;
+
+            // Для легкого уровня просто возвращаем случайный ход
+            if (difficulty <= 1)
+            {
+                var random = new System.Random();
+                return possibleMoves[random.Next(possibleMoves.Count)];
+            }
+
+            // Определяем глубину в зависимости от сложности
+            int depth = difficulty;
+
+            if (difficulty >= 2)
+            {
+                // Для средней сложности используем альфа-бета отсечение
+                return GetBestMoveAlphaBeta(possibleMoves, depth, maximizingPlayer);
+            }
+            else
+            {
+                // Для низкой сложности используем обычный минимакс
+                return GetBestMoveMinimax(possibleMoves, depth, maximizingPlayer);
+            }
+        }
+        
+        // Метод с альфа-бета отсечением
+        private Move? GetBestMoveAlphaBeta(List<Move> possibleMoves, int depth, bool maximizingPlayer,
+                                          int alpha = int.MinValue, int beta = int.MaxValue)
+        {
+            if (depth == 0 || IsGameOver())
+            {
+                return new Move(-1, -1, -1, -1) { Score = _board.EvaluateBoard() };
+            }
+
+            Move? bestMove = null;
+
+            if (maximizingPlayer) // Белые максимизируют счет
+            {
+                int maxEval = int.MinValue;
+                foreach (var move in possibleMoves)
+                {
+                    // Создаем копию доски для анализа
+                    Board tempBoard = new Board(_board.GetPieces());
+                    tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
+
+                    // Рекурсивная оценка хода
+                    GameLogic tempGameLogic = new GameLogic { _board = tempBoard };
+                    var nextPossibleMoves = tempBoard.GetAllPossibleMovesForPlayer("black");
+                    var result = tempGameLogic.GetBestMoveAlphaBeta(nextPossibleMoves, depth - 1, false, alpha, beta);
+
+                    if (result != null)
+                    {
+                        move.Score = result.Score;
+                        if (result.Score > maxEval)
+                        {
+                            maxEval = result.Score;
+                            bestMove = move;
+                        }
+
+                        // Обновляем альфа и проверяем на отсечение
+                        alpha = Math.Max(alpha, maxEval);
+                        if (beta <= alpha)
+                            break; // Бета-отсечение
+                    }
+                }
+            }
+            else // Черные минимизируют счет
+            {
+                int minEval = int.MaxValue;
+                foreach (var move in possibleMoves)
+                {
+                    Board tempBoard = new Board(_board.GetPieces());
+                    tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
+
+                    GameLogic tempGameLogic = new GameLogic { _board = tempBoard };
+                    var nextPossibleMoves = tempBoard.GetAllPossibleMovesForPlayer("white");
+                    var result = tempGameLogic.GetBestMoveAlphaBeta(nextPossibleMoves, depth - 1, true, alpha, beta);
+
+                    if (result != null)
+                    {
+                        move.Score = result.Score;
+                        if (result.Score < minEval)
+                        {
+                            minEval = result.Score;
+                            bestMove = move;
+                        }
+
+                        // Обновляем бету и проверяем на отсечение
+                        beta = Math.Min(beta, minEval);
+                        if (beta <= alpha)
+                            break; // Альфа-отсечение
+                    }
+                }
+            }
+
+            return bestMove;
+        }
+
         public void MakeComputerMove()
         {
-            // Визначаємо колір фігур комп'ютера в залежності від того, за кого грає людина
+            // Определяем цвет фигур компьютера в зависимости от того, за кого играет человек
             string computerColor = _playerPlaysBlack ? "white" : "black";
 
-            // Перевіряємо, чи зараз хід комп'ютера
+            // Проверяем, сейчас ли ход компьютера
             if ((_playerPlaysBlack && _currentPlayer == "white") ||
                 (!_playerPlaysBlack && _currentPlayer == "black"))
             {
                 var possibleMoves = _board.GetAllPossibleMovesForPlayer(computerColor);
                 if (possibleMoves.Any())
                 {
-                    Move? selectedMove = null;
-                    var random = new System.Random();
-
-                    if (_computerDifficulty == 1) // Легкий рівень: випадковий хід
-                    {
-                        selectedMove = possibleMoves[random.Next(possibleMoves.Count)];
-                    }
-                    else if (_computerDifficulty == 2) // Середній рівень: Minimax глибини 1
-                    {
-                        selectedMove = GetBestMoveMinimax(possibleMoves, 1, computerColor == "white");
-                    }
-                    else if (_computerDifficulty == 3) // Складний рівень: Minimax з більшою глибиною
-                    {
-                        selectedMove = GetBestMoveMinimax(possibleMoves, 2, computerColor == "white");
-                    }
+                    // Используем универсальный метод для выбора хода в зависимости от сложности
+                    Move? selectedMove = GetBestMove(
+                        possibleMoves,
+                        (int)CurrentDifficulty,
+                        computerColor == "white"
+                    );
 
                     if (selectedMove != null)
                     {
                         Piece? movedPiece = _board.GetPiece(selectedMove.StartRow, selectedMove.StartCol);
                         Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
                         string moveNotation = GetMoveNotation(movedPiece, selectedMove.StartCol, selectedMove.StartRow, selectedMove.EndCol, selectedMove.EndRow, capturedPiece);
+
                         _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
 
-                        // Перевірка на підвищення пішака комп'ютера
+                        // Проверка на превращение пешки компьютера
                         if (movedPiece?.Type == "pawn" &&
                             ((movedPiece.Color == "white" && selectedMove.EndRow == 0) ||
                              (movedPiece.Color == "black" && selectedMove.EndRow == 7)))
@@ -222,15 +322,20 @@ namespace ChessTrainer
                         }
 
                         MoveMade?.Invoke(this, EventArgs.Empty);
-                        SwitchPlayer(); // Перемикаємо гравця, але БЕЗ рекурсивного виклику MakeComputerMove
+                        SwitchPlayer(); // Переключаем игрока, но БЕЗ рекурсивного вызова MakeComputerMove
                         BoardUpdated?.Invoke(this, EventArgs.Empty);
 
-                        // Перевіряємо на закінчення гри після ходу комп'ютера
+                        // Проверяем окончание игры после хода компьютера
                         CheckGameEnd(computerColor);
                     }
                 }
             }
         }
+
+        /// <summary>
+        /// Дополнительные уровни сложности для расширенной версии игры
+        /// </summary>
+        
 
         private void CheckGameEnd(string lastMoveColor)
         {
@@ -275,7 +380,6 @@ namespace ChessTrainer
             }
 
             Move? bestMove = null;
-
             if (maximizingPlayer) // Білі намагаються максимізувати рахунок
             {
                 int maxEval = int.MinValue;
@@ -403,39 +507,7 @@ namespace ChessTrainer
             return $"{pieceNotation}{startFile}{startRank}{capture}{endFile}{endRank}";
         }
 
-        public string? GetPieceSymbol(Piece? piece)
-        {
-            if (piece == null) return null;
-            return piece.Color == "white" ? GetWhiteSymbol(piece.Type) : GetBlackSymbol(piece.Type);
-        }
 
-        private string GetWhiteSymbol(string type)
-        {
-            return type switch
-            {
-                "pawn" => "♙",
-                "rook" => "♖",
-                "knight" => "♘",
-                "bishop" => "♗",
-                "queen" => "♕",
-                "king" => "♔",
-                _ => ""
-            };
-        }
-
-        private string GetBlackSymbol(string type)
-        {
-            return type switch
-            {
-                "pawn" => "♟",
-                "rook" => "♜",
-                "knight" => "♞",
-                "bishop" => "♝",
-                "queen" => "♛",
-                "king" => "♚",
-                _ => ""
-            };
-        }
     }
 
 }

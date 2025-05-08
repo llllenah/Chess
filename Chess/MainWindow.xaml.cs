@@ -28,7 +28,7 @@ namespace ChessTrainer
         private bool _isTwoPlayersMode = false;
         private bool _isComputerMode = false;
         private string _currentPlayer = "white";
-        private int _computerDifficulty = 1;
+        //private int _computerDifficulty = 1;
         private ObservableCollection<string> _moveHistory = new ObservableCollection<string>();
         private DispatcherTimer? _whiteTimer;
         private DispatcherTimer? _blackTimer;
@@ -44,6 +44,8 @@ namespace ChessTrainer
         private Point _dragStartPoint;
         private BoardCell? _draggedCell;
         private bool _isBoardFlipped = false;
+        private bool _isSettingUpPosition = false; // Додаємо прапорець для відстеження режиму розстановки
+        private BoardCell? _pieceToPlace = null; // Змінна для зберігання фігури, яку потрібно розмістити
 
         public bool IsBoardFlipped
         {
@@ -88,6 +90,52 @@ namespace ChessTrainer
             set => SetProperty(ref _moveHistory, value);
         }
 
+        private void SetupPosition_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isSettingUpPosition)
+            {
+                // Якщо вже в режимі розстановки, виходимо з нього
+                _isSettingUpPosition = false;
+                ClearBoardAndSelection();
+                StatusTextBlock.Text = "Режим гри.";
+            }
+            else
+            {
+                // Переходимо в режим розстановки
+                _isSettingUpPosition = true;
+                ClearBoardAndSelection();
+                StatusTextBlock.Text = "Режим розстановки. Виберіть фігуру для розміщення.";
+                ShowPieceSelectionDialog(); // Показуємо діалог вибору фігури
+            }
+        }
+
+        private void ClearBoardAndSelection()
+        {
+            _gameLogic.InitializeGame(); // Очищаємо дошку в GameLogic
+            UpdateBoardUI(); // Оновлюємо UI
+            ClearHighlights(); // Очищаємо виділення
+            _pieceToPlace = null;
+        }
+
+        private void ShowPieceSelectionDialog()
+        {
+            var pieceSelectionDialog = new PieceSelectionDialog(); // Створюємо новий діалог
+            if (pieceSelectionDialog.ShowDialog() == true)
+            {
+                var selectedPiece = pieceSelectionDialog.SelectedPiece; // Отримуємо вибрану фігуру
+                if (selectedPiece != null)
+                {
+                    _pieceToPlace = new BoardCell(0, 0, Brushes.Transparent, selectedPiece); // Створюємо новий BoardCell з вибраною фігурою
+                    StatusTextBlock.Text = $"Режим розстановки. Виберіть клітинку для розміщення {_pieceToPlace.Piece?.Type} ({_pieceToPlace.Piece?.Color}).";
+                }
+            }
+            else
+            {
+                _isSettingUpPosition = false; // Користувач скасував, виходимо з режиму
+                StatusTextBlock.Text = "Режим гри.";
+            }
+        }
+
         // --- Події ---
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -107,6 +155,7 @@ namespace ChessTrainer
             StartTimers();
             UpdateStatusText();
             DifficultyComboBox.SelectedIndex = 0; // За замовчуванням - Легкий
+            SetInitialDifficulty();
         }
 
         // --- Методи ---
@@ -138,6 +187,21 @@ namespace ChessTrainer
             // Тут можна додати логіку відтворення звуку ходу
         }
 
+        private void SetInitialDifficulty()
+        {
+            // Установка начальной сложности при запуске приложения
+            _gameLogic.CurrentDifficulty = GameLogic.ComputerDifficulty.Medium;
+
+            // Выбираем соответствующий пункт в комбобоксе
+            foreach (ComboBoxItem item in DifficultyComboBox.Items)
+            {
+                if (item.Content.ToString() == "Середній")
+                {
+                    DifficultyComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+        }
         private void OnGameLogicGameEnded(object? sender, EventArgs e)
         {
             IsGameActive = false;
@@ -274,22 +338,6 @@ namespace ChessTrainer
 
         private string GetSquareNotation(int col, int row) => $"{(char)('a' + col)}{8 - row}";
 
-        //private void ClearBoard_Click(object sender, RoutedEventArgs e)
-        //{
-        //    if (_isClearingFromComputerMode || ShowConfirmation("Ви впевнені, що хочете очистити дошку та історію ходів?"))
-        //    {
-        //        _gameLogic.InitializeGame();
-        //        UpdateBoardUI();
-        //        MoveHistory.Clear();
-        //        MoveHistoryListBox.Items.Clear();
-        //        _currentPlayer = "white";
-        //        UpdateStatusText();
-        //        ResetTimers();
-        //        StartTimers();
-        //        _isGameActive = true;
-        //        MoveHistoryListBox.Items.Clear();// Переконайтеся, що гра активна після очищення
-        //    }
-        //}
 
         private bool ShowConfirmation(string message) =>
             MessageBox.Show(message, "Підтвердження", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
@@ -740,17 +788,6 @@ namespace ChessTrainer
         }
 
 
-        //private void BoardCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        //{
-        //    if (!(sender is Border clickedBorder) || !(clickedBorder.DataContext is BoardCell clickedCell)) return;
-
-        //    _dragStartPoint = e.GetPosition(null);
-        //    _draggedCell = clickedCell;
-
-        //    DataObject dragData = new DataObject(typeof(BoardCell), clickedCell);
-        //    DragDrop.DoDragDrop(clickedBorder, dragData, DragDropEffects.Move);
-        //}
-
         private void BoardCell_DragEnter(object sender, DragEventArgs e)
         {
             if (!(sender is Border targetBorder) || !(targetBorder.DataContext is BoardCell targetCell) || _draggedCell == null || targetCell == _draggedCell) return;
@@ -766,23 +803,6 @@ namespace ChessTrainer
             _draggedCell = null;
         }
 
-        //private void TryMove(BoardCell startCell, BoardCell endCell)
-        //{
-        //    if (_gameLogic.TryMovePiece(startCell.Row, startCell.Col, endCell.Row, endCell.Col))
-        //    {
-        //        string moveNotation = GetMoveNotation(startCell, endCell);
-        //        UpdateMoveHistory(moveNotation);
-
-        //        // Оновлюємо _currentPlayer після ходу гравця
-        //        _currentPlayer = _gameLogic.CurrentPlayer;
-        //        UpdateStatusText();
-        //        UpdateBoardUI();
-        //        SwitchPlayer();
-
-        //        // Виконуємо хід комп'ютера, якщо потрібно
-        //        HandleComputerMoveAfterPlayerMove();
-        //    }
-        //}
 
         private void HandleComputerMoveAfterPlayerMove()
         {
@@ -832,17 +852,19 @@ namespace ChessTrainer
 
         private void DifficultyComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (DifficultyComboBox.SelectedItem is ComboBoxItem selectedItem)
+            if (DifficultyComboBox.SelectedItem is ComboBoxItem selectedItem && _gameLogic != null)
             {
-                _gameLogic.ComputerDifficulty = selectedItem.Content.ToString() switch
+                _gameLogic.CurrentDifficulty = selectedItem.Content.ToString() switch
                 {
-                    "Легкий" => 1,
-                    "Середній" => 2,
-                    "Складний" => 3,
-                    _ => 1
+                    "Easy" => GameLogic.ComputerDifficulty.Easy,
+                    "Medium" => GameLogic.ComputerDifficulty.Medium,
+                    "Hard" => GameLogic.ComputerDifficulty.Hard,
+                    "Expert" => GameLogic.ComputerDifficulty.Expert,
+                    _ => GameLogic.ComputerDifficulty.Random
                 };
             }
         }
+
 
 
         // Add these methods to your MainWindow class
@@ -893,18 +915,31 @@ namespace ChessTrainer
         private void BoardCell_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (!(sender is Border clickedBorder) || !(clickedBorder.DataContext is BoardCell clickedCell)) return;
+            if (_isSettingUpPosition && _pieceToPlace != null)
+            {
+                // Режим розстановки: розміщуємо фігуру
+                _gameLogic.Board.SetPiece(
+                    clickedCell.Row,
+                    clickedCell.Col,
+                    new Piece(_pieceToPlace.Piece.Color, _pieceToPlace.Piece.Type) // Accessing the Piece property of _pieceToPlace
+                );
+                UpdateBoardUI();
+                e.Handled = true;
+            }
 
-            // Show valid moves for the clicked piece
-            ShowValidMovesForPiece(clickedCell.Row, clickedCell.Col);
+            else if (!_isSettingUpPosition && _isGameActive)
+            {// Show valid moves for the clicked piece
+                ShowValidMovesForPiece(clickedCell.Row, clickedCell.Col);
 
-            _dragStartPoint = e.GetPosition(null);
-            _draggedCell = clickedCell;
+                _dragStartPoint = e.GetPosition(null);
+                _draggedCell = clickedCell;
 
-            DataObject dragData = new DataObject(typeof(BoardCell), clickedCell);
-            DragDrop.DoDragDrop(clickedBorder, dragData, DragDropEffects.Move);
+                DataObject dragData = new DataObject(typeof(BoardCell), clickedCell);
+                DragDrop.DoDragDrop(clickedBorder, dragData, DragDropEffects.Move);
 
-            // Clear highlights after the drag operation
-            ClearHighlights();
+                // Clear highlights after the drag operation
+                ClearHighlights();
+            }
         }
 
         // Update the TryMove method to clear highlights after a move

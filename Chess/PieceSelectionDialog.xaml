@@ -1,0 +1,20 @@
+﻿<Window x:Class="ChessTrainer.PieceSelectionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Виберіть фігуру" Height="200" Width="300">
+    <StackPanel>
+        <RadioButton Content="Білий пішак" Tag="white,pawn" IsChecked="True" />
+        <RadioButton Content="Білий тура" Tag="white,rook" />
+        <RadioButton Content="Білий кінь" Tag="white,knight" />
+        <RadioButton Content="Білий слон" Tag="white,bishop" />
+        <RadioButton Content="Білий ферзь" Tag="white,queen" />
+        <RadioButton Content="Білий король" Tag="white,king" />
+        <RadioButton Content="Чорний пішак" Tag="black,pawn" />
+        <RadioButton Content="Чорний тура" Tag="black,rook" />
+        <RadioButton Content="Чорний кінь" Tag="black,knight" />
+        <RadioButton Content="Чорний слон" Tag="black,bishop" />
+        <RadioButton Content="Чорний ферзь" Tag="black,queen" />
+        <RadioButton Content="Чорний король" Tag="black,king" />
+        <Button Content="OK" Click="OkButton_Click" IsDefault="True" />
+    </StackPanel>
+</Window>

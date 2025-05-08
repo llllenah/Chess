@@ -108,12 +108,15 @@
             <Button Content="Режим 2 Гравці" Click="SetTwoPlayersMode_Click" Margin="5"/>
             <Button Content="Режим проти Комп'ютера" Click="SetComputerMode_Click" Margin="5"/>
             <ComboBox x:Name="DifficultyComboBox" Margin="5" Visibility="Collapsed" SelectionChanged="DifficultyComboBox_SelectionChanged">
-                <ComboBoxItem Content="Легкий"/>
-                <ComboBoxItem Content="Середній"/>
-                <ComboBoxItem Content="Складний"/>
+                <ComboBoxItem Content="Random"/>
+                <ComboBoxItem Content="Easy"/>
+                <ComboBoxItem Content="Medium"/>
+                <ComboBoxItem Content="Hard"/>
+                <ComboBoxItem Content="Expert"/>
             </ComboBox>
             <Button Content="Зберегти Позицію" Click="SavePosition_Click" Margin="5"/>
             <Button Content="Завантажити Позицію" Click="LoadPosition_Click" Margin="5"/>
+            <Button Content="Розставити фігури самостійно" Click="SetupPosition_Click"  Margin="5"/>
             <StackPanel Orientation="Horizontal"
                     Visibility="{Binding IsComputerMode, 
                                          Converter={StaticResource BooleanToVisibility}}">

@@ -373,47 +373,6 @@ namespace ChessTrainer
             return validMoves;
         }
 
-        /// <summary>
-        /// Check if a move from (sourceRow, sourceCol) to (targetRow, targetCol) is valid for the given player color
-        /// </summary>
-        //private bool IsValidMove(int sourceRow, int sourceCol, int targetRow, int targetCol, string playerColor)
-        //{
-        //    // Get the piece at the source position
-        //    Piece? sourcePiece = GetPiece(sourceRow, sourceCol);
-        //    if (sourcePiece == null || sourcePiece.Color != playerColor) return false;
-
-        //    // Get the piece at the target position
-        //    Piece? targetPiece = GetPiece(targetRow, targetCol);
-
-        //    // Can't capture own pieces
-        //    if (targetPiece != null && targetPiece.Color == playerColor) return false;
-
-        //    // Check move validity based on piece type
-        //    switch (sourcePiece.Type)
-        //    {
-        //        case "pawn":
-        //            return IsValidPawnMove(sourceRow, sourceCol, targetRow, targetCol, playerColor);
-        //        case "rook":
-        //            return IsValidRookMove(sourceRow, sourceCol, targetRow, targetCol);
-        //        case "knight":
-        //            return IsValidKnightMove(sourceRow, sourceCol, targetRow, targetCol);
-        //        case "bishop":
-        //            return IsValidBishopMove(sourceRow, sourceCol, targetRow, targetCol);
-        //        case "queen":
-        //            return IsValidQueenMove(sourceRow, sourceCol, targetRow, targetCol);
-        //        case "king":
-        //            return IsValidKingMove(sourceRow, sourceCol, targetRow, targetCol);
-        //        default:
-        //            return false;
-        //    }
-        //}
-
-        // Your existing piece movement validation methods would be used here
-        // Make sure they're accessible from this context
-        // Examples might include:
-        // private bool IsValidPawnMove(int sourceRow, int sourceCol, int targetRow, int targetCol, string playerColor)
-        // private bool IsValidRookMove(int sourceRow, int sourceCol, int targetRow, int targetCol)
-        // etc.
         private bool IsPathClear(int startRow, int startCol, int endRow, int endCol)
         {
             int rowDifference = endRow - startRow;
