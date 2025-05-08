@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -20,30 +21,39 @@ namespace ChessTrainer
     {
         #region Fields
 
-        // Game state
-        private bool _isGameActive = true;
-        private string _gameResultText = "";
-        private ObservableCollection<BoardCell> _board = new ObservableCollection<BoardCell>();
-        private ChessColor _playerColor = ChessColor.White;
-        private bool _isTwoPlayersMode = false;
-        private bool _isComputerMode = false;
-        private string _currentPlayer = "white";
-        private bool _playerPlaysBlack = false;
-        private ObservableCollection<string> _moveHistory = new ObservableCollection<string>();
-        private bool _isPositionLoaded = false;
-        private bool _firstMoveAfterLoad = false;
-        private bool _isClearingFromComputerMode = false;
-        private GameLogic _gameLogic;
+        // Main panels for piece setup
+        private StackPanel _whitePanel;
+        private StackPanel _blackPanel;
+
+        // Setup mode active pieces
+        private Dictionary<string, Border> _whitePieces = new Dictionary<string, Border>();
+        private Dictionary<string, Border> _blackPieces = new Dictionary<string, Border>();
 
         // UI state
-        private Color _lightBoardColor = Brushes.LightGray.Color;
-        private Color _darkBoardColor = Brushes.White.Color;
         private Point _dragStartPoint;
         private BoardCell? _draggedCell;
         private bool _isBoardFlipped = false;
         private bool _isSetupPositionMode = false;
         private Piece? _selectedPieceForPlacement = null;
-        private Button? _selectedPieceButton = null;
+        private Border? _selectedPieceBorder = null;
+
+        // Game state
+        private bool _isGameActive = true;
+        private string _gameResultText = "";
+        private ObservableCollection<BoardCell> _board = new ObservableCollection<BoardCell>();
+        private ObservableCollection<string> _moveHistory = new ObservableCollection<string>();
+        private string _currentPlayer = "white";
+        private bool _isPositionLoaded = false;
+        private bool _firstMoveAfterLoad = false;
+        private bool _isClearingFromComputerMode = false;
+
+        // Game modes
+        private bool _isTwoPlayersMode = false;
+        private bool _isComputerMode = false;
+        private ChessColor _playerColor = ChessColor.White;
+
+        // Game logic
+        private GameLogic _gameLogic;
 
         // Timers
         private DispatcherTimer? _whiteTimer;
@@ -52,9 +62,9 @@ namespace ChessTrainer
         private TimeSpan _blackTimeLeft;
         private bool _isTimerRunning;
 
-        // UI panels
-        private StackPanel? _whitePiecePanel;
-        private StackPanel? _blackPiecePanel;
+        // Colors
+        private Color _lightBoardColor = Brushes.LightGray.Color;
+        private Color _darkBoardColor = Brushes.White.Color;
 
         #endregion
 
@@ -95,11 +105,8 @@ namespace ChessTrainer
             get => _isComputerMode;
             set
             {
-                if (_isComputerMode != value)
-                {
-                    _isComputerMode = value;
-                    OnPropertyChanged(nameof(IsComputerMode));
-                }
+                _isComputerMode = value;
+                OnPropertyChanged(nameof(IsComputerMode));
             }
         }
 
@@ -142,32 +149,90 @@ namespace ChessTrainer
             InitializeComponent();
             DataContext = this;
 
-            // Initialize UI elements
-            _whitePiecePanel = FindName("WhitePiecePanel") as StackPanel;
-            _blackPiecePanel = FindName("BlackPiecePanel") as StackPanel;
+            // Initialize non-nullable fields
+            _whitePanel = new StackPanel();
+            _blackPanel = new StackPanel();
+            SideGrid = new Grid();
 
-            // Initialize game logic
+            // Инициализация игровой логики
             _gameLogic = new GameLogic();
             _gameLogic.BoardUpdated += OnGameLogicBoardUpdated;
             _gameLogic.MoveMade += OnGameLogicMoveMade;
             _gameLogic.GameEnded += OnGameLogicGameEnded;
+            _gameLogic.PawnPromotion += OnPawnPromotion;
 
-            // Initialize game state
+            // Настройка диалога продвижения пешки
+            _gameLogic.SetPromotionDialogCallback(ShowPromotionDialog);
+
+            // Сначала создаем боковые панели, затем инициализируем их
+            CreateSidePanels();
+            InitializeSetupPanels();
+
+            // Инициализация игрового состояния
             Board = _gameLogic.GetCurrentBoard();
             InitializeTimers();
             StartTimers();
             UpdateStatusText();
 
-            // Set initial difficulty
+            // Устанавливаем начальную сложность
             if (DifficultyComboBox != null)
             {
-                DifficultyComboBox.SelectedIndex = 2; // Medium difficulty
+                DifficultyComboBox.SelectedIndex = 2; // Средняя сложность
+                DifficultyComboBox.Visibility = Visibility.Collapsed; // Изначально скрываем
             }
-
-            // Initial UI setup
-            if (_whitePiecePanel != null) _whitePiecePanel.Visibility = Visibility.Collapsed;
-            if (_blackPiecePanel != null) _blackPiecePanel.Visibility = Visibility.Collapsed;
         }
+        /// <summary>
+        /// Creates the side panels for piece selection during setup
+        /// </summary>
+        private void CreateSidePanels()
+        {
+            // Create side grid for placing pieces
+            Grid sideGrid = new Grid();
+            sideGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) }); // Увеличенная ширина до 150
+            sideGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            sideGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+            // Create white pieces panel
+            _whitePanel = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Width = 140, // Увеличенная ширина панели
+                Margin = new Thickness(0) // Добавляем отступ
+            };
+
+            // Create black pieces panel
+            _blackPanel = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Width = 140, // Увеличенная ширина панели
+                Margin = new Thickness(0) // Добавляем отступ
+            };
+
+            // Add panels to the grid
+            sideGrid.Children.Add(_whitePanel);
+            sideGrid.Children.Add(_blackPanel);
+            Grid.SetRow(_whitePanel, 0);
+            Grid.SetRow(_blackPanel, 1);
+
+            // Add the side grid to the main grid
+            MainGrid.Children.Add(sideGrid);
+            Grid.SetColumn(sideGrid, 3);
+            Grid.SetRow(sideGrid, 1);
+
+            // Initially hide panels
+            sideGrid.Visibility = Visibility.Collapsed;
+
+            // Store reference to side grid
+            SideGrid = sideGrid;
+        }
+        /// <summary>
+        /// Side grid for piece selection
+        /// </summary>
+        private Grid SideGrid { get; set; }
 
         #endregion
 
@@ -250,6 +315,47 @@ namespace ChessTrainer
                     Application.Current.Shutdown();
                 }
             });
+        }
+
+        /// <summary>
+        /// Handles the PawnPromotion event from GameLogic
+        /// </summary>
+        private void OnPawnPromotion(object? sender, PawnPromotionEventArgs e)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                // Show the promotion dialog
+                PawnPromotionDialog dialog = new PawnPromotionDialog(e.PawnColor);
+
+                if (dialog.ShowDialog() == true)
+                {
+                    // Set the promotion piece
+                    e.PromotionPiece = dialog.SelectedPieceType;
+                }
+                else
+                {
+                    // Promotion was cancelled
+                    e.IsCancelled = true;
+                }
+            });
+        }
+
+        /// <summary>
+        /// Shows the pawn promotion dialog
+        /// </summary>
+        /// <param name="pawnColor">Color of the pawn being promoted</param>
+        /// <returns>The type of piece to promote to</returns>
+        private string ShowPromotionDialog(string pawnColor)
+        {
+            PawnPromotionDialog dialog = new PawnPromotionDialog(pawnColor);
+
+            if (dialog.ShowDialog() == true)
+            {
+                return dialog.SelectedPieceType;
+            }
+
+            // Default to queen if dialog was cancelled
+            return "queen";
         }
 
         #endregion
@@ -341,10 +447,21 @@ namespace ChessTrainer
                 IsComputerMode = true;
                 UpdateStatusText();
                 _currentPlayer = "white";
+
+                // Set player color
+                _playerColor = PlayAsWhiteRadioButton?.IsChecked == true ? ChessColor.White : ChessColor.Black;
+                _gameLogic.PlayerPlaysBlack = _playerColor == ChessColor.Black;
+
                 StartTimers();
                 _isPositionLoaded = false;
                 _firstMoveAfterLoad = false;
                 _isClearingFromComputerMode = false;
+
+                // If computer plays white, make first move
+                if (_playerColor == ChessColor.Black && _currentPlayer == "white")
+                {
+                    _gameLogic.MakeComputerMove();
+                }
             }
         }
 
@@ -358,13 +475,12 @@ namespace ChessTrainer
             if (_isSetupPositionMode)
             {
                 // Enter setup mode
-                InitializePiecePanels();
+                InitializeSetupPanels();
 
-                if (_whitePiecePanel != null && _blackPiecePanel != null)
+                // Show side panel
+                if (SideGrid != null)
                 {
-                    // Show piece panels
-                    _whitePiecePanel.Visibility = Visibility.Visible;
-                    _blackPiecePanel.Visibility = Visibility.Visible;
+                    SideGrid.Visibility = Visibility.Visible;
 
                     // Update status
                     if (StatusTextBlock != null)
@@ -374,14 +490,13 @@ namespace ChessTrainer
             else
             {
                 // Exit setup mode
-                if (_whitePiecePanel != null && _blackPiecePanel != null)
+                if (SideGrid != null)
                 {
-                    _whitePiecePanel.Visibility = Visibility.Collapsed;
-                    _blackPiecePanel.Visibility = Visibility.Collapsed;
+                    SideGrid.Visibility = Visibility.Collapsed;
                 }
 
                 _selectedPieceForPlacement = null;
-                _selectedPieceButton = null;
+                _selectedPieceBorder = null;
 
                 // Save the current setup to the game logic
                 SaveCurrentSetupToGameLogic();
@@ -533,7 +648,15 @@ namespace ChessTrainer
 
             // Reset the game
             InitializeGame();
-            StartNewGame_Click(sender, e);
+            InitializeBoardUI();
+
+            // If computer plays first, make its move
+            if (_isComputerMode && _playerColor == ChessColor.Black && _currentPlayer == "white")
+            {
+                _gameLogic.MakeComputerMove();
+            }
+
+            UpdateStatusText();
         }
 
         /// <summary>
@@ -555,14 +678,14 @@ namespace ChessTrainer
 
             if (_isSetupPositionMode)
             {
-                // Setup mode - place or remove pieces
+                // Режим расстановки - размещаем или удаляем фигуры
                 if (_selectedPieceForPlacement != null)
                 {
                     PlacePieceInSetupMode(clickedCell);
                 }
                 else
                 {
-                    // No piece selected - remove piece at this location
+                    // Фигура не выбрана - удаляем фигуру в этой позиции
                     foreach (var cell in Board)
                     {
                         if (cell.Row == clickedCell.Row && cell.Col == clickedCell.Col)
@@ -577,10 +700,27 @@ namespace ChessTrainer
             }
             else if (_isGameActive)
             {
-                // Normal game play - show valid moves and initiate drag
+                // Проверяем, чей сейчас ход
+                if (!_gameLogic.IsPlayerTurn())
+                {
+                    if (StatusTextBlock != null)
+                        StatusTextBlock.Text = $"Сейчас ход компьютера. Пожалуйста, подождите.";
+                    return;
+                }
+
+                // Проверяем, что выбрана фигура текущего игрока
+                var piece = clickedCell.Piece;
+                if (piece == null || piece.Color != _currentPlayer)
+                {
+                    if (StatusTextBlock != null)
+                        StatusTextBlock.Text = $"Сейчас ход {(_currentPlayer == "white" ? "белых" : "черных")}. Выберите свою фигуру.";
+                    return;
+                }
+
+                // Обычный игровой процесс - показываем возможные ходы и начинаем перетаскивание
                 ShowValidMovesForPiece(clickedCell.Row, clickedCell.Col);
 
-                // Don't start drag if no valid moves
+                // Не начинаем перетаскивание, если нет доступных ходов
                 if (Board.Any(c => c.IsHighlighted))
                 {
                     _dragStartPoint = e.GetPosition(null);
@@ -593,7 +733,6 @@ namespace ChessTrainer
                 e.Handled = true;
             }
         }
-
         /// <summary>
         /// Handles drag enter events on board cells
         /// </summary>
@@ -631,13 +770,13 @@ namespace ChessTrainer
         }
 
         /// <summary>
-        /// Handles piece button clicks during setup
+        /// Handles piece selection during setup
         /// </summary>
-        private void PieceButton_Click(object sender, RoutedEventArgs e)
+        private void PieceSetup_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.Tag is string tag)
+            if (sender is Border pieceBorder && pieceBorder.Tag is string pieceInfo)
             {
-                string[] parts = tag.Split(',');
+                string[] parts = pieceInfo.Split(',');
                 if (parts.Length == 2)
                 {
                     string pieceColor = parts[0];
@@ -646,6 +785,9 @@ namespace ChessTrainer
                     // Select this piece for placement
                     _selectedPieceForPlacement = new Piece(pieceColor, pieceType);
 
+                    // Highlight this piece border
+                    HighlightSelectedPieceBorder(pieceBorder);
+
                     // Update status
                     if (StatusTextBlock != null)
                     {
@@ -653,11 +795,28 @@ namespace ChessTrainer
                         string typeName = GetPieceTypeName(pieceType);
                         StatusTextBlock.Text = $"Обрано фігуру: {colorName} {typeName}. Клацніть на дошці, щоб розмістити.";
                     }
-
-                    // Update button highlight
-                    HighlightSelectedPieceButton(button);
                 }
             }
+        }
+
+        /// <summary>
+        /// Handles the remove button click during setup
+        /// </summary>
+        private void RemovePieceButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Deselect current piece
+            _selectedPieceForPlacement = null;
+
+            if (_selectedPieceBorder != null)
+            {
+                _selectedPieceBorder.BorderBrush = Brushes.Transparent;
+                _selectedPieceBorder.BorderThickness = new Thickness(1);
+                _selectedPieceBorder = null;
+            }
+
+            // Update status
+            if (StatusTextBlock != null)
+                StatusTextBlock.Text = "Режим видалення. Клацніть на фігуру на дошці, щоб видалити її.";
         }
 
         #endregion
@@ -723,7 +882,10 @@ namespace ChessTrainer
                 }
                 else if (_isComputerMode)
                 {
-                    StatusTextBlock.Text = $"Режим проти комп'ютера. Хід {playerText}.";
+                    // Add indication of whose turn it is
+                    bool isPlayerTurn = _gameLogic.IsPlayerTurn();
+                    string turnInfo = isPlayerTurn ? "Ваш хід" : "Хід комп'ютера";
+                    StatusTextBlock.Text = $"Режим проти комп'ютера. Хід {playerText}. {turnInfo}.";
                 }
                 else
                 {
@@ -746,8 +908,14 @@ namespace ChessTrainer
         /// <summary>
         /// Shows valid moves for a piece
         /// </summary>
+        /// <param name="row">Row of the piece</param>
+        /// <param name="col">Column of the piece</param>
         private void ShowValidMovesForPiece(int row, int col)
         {
+            // First check if it's the player's turn
+            if (!_gameLogic.IsPlayerTurn())
+                return;
+
             ClearHighlights();
 
             var selectedCell = Board.FirstOrDefault(c => c.Row == row && c.Col == col);
@@ -771,10 +939,34 @@ namespace ChessTrainer
         /// <summary>
         /// Places a piece on the board during setup mode
         /// </summary>
+        /// <param name="clickedCell">The cell to place the piece on</param>
         private void PlacePieceInSetupMode(BoardCell clickedCell)
         {
             if (_selectedPieceForPlacement == null)
                 return;
+
+            // Проверка на ограничения количества фигур
+            if (!CanPlacePiece(_selectedPieceForPlacement.Type, _selectedPieceForPlacement.Color))
+            {
+                string localizedType = GetLocalizedPieceType(_selectedPieceForPlacement.Type);
+                string localizedColor = _selectedPieceForPlacement.Color == "white" ? "білих" : "чорних";
+                MessageBox.Show($"Досягнуто максимальна кількість {localizedType} для {localizedColor}!",
+                                "Обмеження фігур",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Information);
+                return;
+            }
+
+            // Если на клетке уже есть фигура, сначала удаляем её из счётчика
+            Piece? existingPiece = null;
+            foreach (var cell in Board)
+            {
+                if (cell.Row == clickedCell.Row && cell.Col == clickedCell.Col)
+                {
+                    existingPiece = cell.Piece;
+                    break;
+                }
+            }
 
             foreach (var cell in Board)
             {
@@ -787,26 +979,88 @@ namespace ChessTrainer
         }
 
         /// <summary>
-        /// Highlights the selected piece button
+        /// Проверяет, можно ли разместить ещё одну фигуру данного типа и цвета
         /// </summary>
-        private void HighlightSelectedPieceButton(Button selectedButton)
+        /// <param name="pieceType">Тип фигуры</param>
+        /// <param name="pieceColor">Цвет фигуры</param>
+        /// <returns>True, если можно разместить, иначе false</returns>
+        private bool CanPlacePiece(string pieceType, string pieceColor)
         {
-            // Remove highlight from previously selected button
-            if (_selectedPieceButton != null)
+            // Подсчитываем количество фигур данного типа и цвета на доске
+            int count = 0;
+            foreach (var cell in Board)
             {
-                _selectedPieceButton.BorderBrush = Brushes.Transparent;
-                _selectedPieceButton.BorderThickness = new Thickness(1);
+                if (cell.Piece != null &&
+                    cell.Piece.Type == pieceType &&
+                    cell.Piece.Color == pieceColor)
+                {
+                    count++;
+                }
             }
 
-            // Highlight the new button
-            _selectedPieceButton = selectedButton;
-            _selectedPieceButton.BorderBrush = Brushes.Green;
-            _selectedPieceButton.BorderThickness = new Thickness(3);
+            // Устанавливаем ограничения в зависимости от типа фигуры
+            switch (pieceType)
+            {
+                case "king":
+                    return count < 1;  // Только 1 король каждого цвета
+                case "queen":
+                    return count < 9;  // Максимум 9 ферзей (из пешек)
+                case "rook":
+                    return count < 2;  // 2 ладьи
+                case "bishop":
+                    return count < 2;  // 2 слона
+                case "knight":
+                    return count < 2;  // 2 коня
+                case "pawn":
+                    return count < 8;  // 8 пешек
+                default:
+                    return true;
+            }
+        }
+
+        /// <summary>
+        /// Возвращает локализованное название типа фигуры
+        /// </summary>
+        /// <param name="pieceType">Тип фигуры</param>
+        /// <returns>Локализованное название</returns>
+        private string GetLocalizedPieceType(string pieceType)
+        {
+            return pieceType switch
+            {
+                "king" => "королів",
+                "queen" => "ферзів",
+                "rook" => "ладей",
+                "bishop" => "слонів",
+                "knight" => "коней",
+                "pawn" => "пішаків",
+                _ => pieceType
+            };
+        }
+
+        /// <summary>
+        /// Highlights the selected piece border
+        /// </summary>
+        /// <param name="selectedBorder">The border to highlight</param>
+        private void HighlightSelectedPieceBorder(Border selectedBorder)
+        {
+            // Remove highlight from previously selected border
+            if (_selectedPieceBorder != null)
+            {
+                _selectedPieceBorder.BorderBrush = Brushes.Transparent;
+                _selectedPieceBorder.BorderThickness = new Thickness(1);
+            }
+
+            // Highlight the new border
+            _selectedPieceBorder = selectedBorder;
+            _selectedPieceBorder.BorderBrush = Brushes.Green;
+            _selectedPieceBorder.BorderThickness = new Thickness(3);
         }
 
         /// <summary>
         /// Sets the board colors
         /// </summary>
+        /// <param name="lightColor">Light squares color</param>
+        /// <param name="darkColor">Dark squares color</param>
         private void SetBoardColors(Color lightColor, Color darkColor)
         {
             _lightBoardColor = lightColor;
@@ -821,6 +1075,7 @@ namespace ChessTrainer
         /// <summary>
         /// Updates the move history
         /// </summary>
+        /// <param name="move">The move to add to history</param>
         private void UpdateMoveHistory(string move)
         {
             MoveHistory.Add(move);
@@ -848,6 +1103,7 @@ namespace ChessTrainer
         /// <summary>
         /// Updates move history from loaded data
         /// </summary>
+        /// <param name="loadedHistory">The loaded history to display</param>
         private void UpdateMoveHistoryFromLoaded(ObservableCollection<string> loadedHistory)
         {
             ClearMoveHistory();
@@ -870,13 +1126,6 @@ namespace ChessTrainer
             _gameLogic.InitializeGame();
             _currentPlayer = "white";
 
-            // Handle first move if computer plays white
-            if (_isComputerMode && _playerPlaysBlack && _currentPlayer == "white")
-            {
-                _currentPlayer = "black";
-                Dispatcher.BeginInvoke(new Action(() => _gameLogic.MakeComputerMove()));
-            }
-
             MoveHistory.Clear();
             IsGameActive = true;
             GameResultText = "";
@@ -896,83 +1145,115 @@ namespace ChessTrainer
         }
 
         /// <summary>
-        /// Initializes the piece panels for setup mode
+        /// Initializes the panels for piece setup
         /// </summary>
-        private void InitializePiecePanels()
+        private void InitializeSetupPanels()
         {
-            // Ensure panels exist
-            if (_whitePiecePanel == null || _blackPiecePanel == null)
+            // Clear existing panels
+            _whitePanel.Children.Clear();
+            _blackPanel.Children.Clear();
+
+            // Add title for white pieces
+            TextBlock whiteTitle = new TextBlock
             {
-                _whitePiecePanel = new StackPanel { Orientation = Orientation.Horizontal };
-                _blackPiecePanel = new StackPanel { Orientation = Orientation.Horizontal };
+                Text = "Білі фігури",
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Margin = new Thickness(0, 0, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            _whitePanel.Children.Add(whiteTitle);
 
-                if (MainGrid != null)
-                {
-                    if (!MainGrid.Children.Contains(_whitePiecePanel))
-                        MainGrid.Children.Add(_whitePiecePanel);
+            // Add title for black pieces
+            TextBlock blackTitle = new TextBlock
+            {
+                Text = "Чорні фігури",
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Margin = new Thickness(0, 0, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            _blackPanel.Children.Add(blackTitle);
 
-                    if (!MainGrid.Children.Contains(_blackPiecePanel))
-                        MainGrid.Children.Add(_blackPiecePanel);
+            // Create piece types
+            string[] pieceTypes = { "king", "queen", "rook", "bishop", "knight", "pawn" };
 
-                    Grid.SetRow(_whitePiecePanel, 0);
-                    Grid.SetColumn(_whitePiecePanel, 0);
-                    Grid.SetRow(_blackPiecePanel, 0);
-                    Grid.SetColumn(_blackPiecePanel, 0);
-
-                    // Add margin to separate black pieces
-                    _blackPiecePanel.Margin = new Thickness(250, 10, 10, 10);
-                }
-            }
-
-            // Clear panels
-            _whitePiecePanel.Children.Clear();
-            _blackPiecePanel.Children.Clear();
-
-            // Add piece buttons
-            string[] pieceTypes = { "pawn", "rook", "knight", "bishop", "queen", "king" };
-
+            // Add white pieces
             foreach (var pieceType in pieceTypes)
             {
-                CreatePieceButton("white", pieceType, _whitePiecePanel);
-                CreatePieceButton("black", pieceType, _blackPiecePanel);
+                CreatePieceSetupButton("white", pieceType, _whitePanel);
             }
+
+            // Add black pieces
+            foreach (var pieceType in pieceTypes)
+            {
+                CreatePieceSetupButton("black", pieceType, _blackPanel);
+            }
+
+            // Add remove button for both panels
+            Button removeWhiteButton = new Button
+            {
+                Content = "Видалити",
+                Margin = new Thickness(0, 5, 0, 0),
+                Padding = new Thickness(0),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Width = 80
+            };
+            removeWhiteButton.Click += RemovePieceButton_Click;
+            _whitePanel.Children.Add(removeWhiteButton);
 
             // Reset selection
             _selectedPieceForPlacement = null;
-            _selectedPieceButton = null;
+            _selectedPieceBorder = null;
         }
-
         /// <summary>
-        /// Creates a piece button for the setup panel
+        /// Creates a button for piece setup
         /// </summary>
-        private void CreatePieceButton(string pieceColor, string pieceType, StackPanel panel)
+        /// <param name="pieceColor">Color of the piece</param>
+        /// <param name="pieceType">Type of the piece</param>
+        /// <param name="panel">Panel to add the button to</param>
+        private void CreatePieceSetupButton(string pieceColor, string pieceType, StackPanel panel)
         {
-            // Create a button for the piece
-            Button pieceButton = new Button
+            // Create a piece
+            Piece piece = new Piece(pieceColor, pieceType);
+
+            // Create border for the piece
+            Border pieceBorder = new Border
             {
-                Width = 40,
-                Height = 40,
-                Margin = new Thickness(2),
+                Width = 50,  // Увеличенная ширина
+                Height = 50, // Увеличенная высота
+                Margin = new Thickness(0),
+                Background = Brushes.Transparent,
+                BorderBrush = Brushes.Transparent,
+                BorderThickness = new Thickness(1),
                 Tag = $"{pieceColor},{pieceType}",
-                ToolTip = $"{(pieceColor == "white" ? "Білий" : "Чорний")} {GetPieceTypeName(pieceType)}"
+                ToolTip = piece.GetLocalizedName()
             };
 
-            // Create the piece icon
+            // Add the piece icon
             TextBlock pieceIcon = new TextBlock
             {
-                FontSize = 24,
+                Text = piece.GetUnicodeSymbol(),
                 FontFamily = new FontFamily("Segoe UI Symbol"),
-                HorizontalAlignment = HorizontalAlignment.Center,
+                FontSize = 36,  // Увеличенный размер шрифта
+                TextAlignment = TextAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
-                Text = new Piece(pieceColor, pieceType).GetUnicodeSymbol()
+                HorizontalAlignment = HorizontalAlignment.Center
             };
 
-            pieceButton.Content = pieceIcon;
-            pieceButton.Click += PieceButton_Click;
+            pieceBorder.Child = pieceIcon;
+            pieceBorder.MouseDown += PieceSetup_Click;
 
-            panel.Children.Add(pieceButton);
+            // Add to panel
+            panel.Children.Add(pieceBorder);
+
+            // Store reference to the border
+            string key = $"{pieceColor}_{pieceType}";
+            if (pieceColor == "white")
+                _whitePieces[key] = pieceBorder;
+            else
+                _blackPieces[key] = pieceBorder;
         }
-
         /// <summary>
         /// Saves the current board setup to the game logic
         /// </summary>
@@ -1003,8 +1284,18 @@ namespace ChessTrainer
         /// <summary>
         /// Tries to make a move
         /// </summary>
+        /// <param name="startCell">Starting cell</param>
+        /// <param name="endCell">Ending cell</param>
         private void TryMove(BoardCell startCell, BoardCell endCell)
         {
+            // Check if it's the player's turn
+            if (!_gameLogic.IsPlayerTurn())
+            {
+                if (StatusTextBlock != null)
+                    StatusTextBlock.Text = "Зараз не ваш хід!";
+                return;
+            }
+
             if (_gameLogic.TryMovePiece(startCell.Row, startCell.Col, endCell.Row, endCell.Col))
             {
                 // Move was successful - update UI state
@@ -1012,56 +1303,13 @@ namespace ChessTrainer
                 _currentPlayer = _gameLogic.CurrentPlayer;
                 UpdateStatusText();
                 UpdateBoardUI();
-
-                // Check if computer should move
-                if (_isComputerMode && _isGameActive)
-                {
-                    CheckForComputerMove();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Checks if the computer should make a move and initiates it
-        /// </summary>
-        private void CheckForComputerMove()
-        {
-            // In normal computer mode
-            string currentPlayer = _gameLogic.CurrentPlayer;
-            bool isComputerTurn = (_playerPlaysBlack && currentPlayer == "white") ||
-                                 (!_playerPlaysBlack && currentPlayer == "black");
-
-            if (isComputerTurn)
-            {
-                _gameLogic.MakeComputerMove();
-            }
-            // Handle special case of continuing from a loaded position
-            else if (_isPositionLoaded && _firstMoveAfterLoad)
-            {
-                _firstMoveAfterLoad = false;
-
-                if (ShowConfirmation("Продовжити гру з поточної позиції проти комп'ютера?\nНатисніть 'Так' для продовження, 'Ні' - для початку нової гри."))
-                {
-                    _gameLogic.SetComputerMode(true);
-
-                    if (DifficultyComboBox != null)
-                        DifficultyComboBox.Visibility = Visibility.Visible;
-
-                    UpdateStatusText();
-
-                    // Check again for computer move
-                    CheckForComputerMove();
-                }
-                else
-                {
-                    SetComputerMode_Click(this, new RoutedEventArgs());
-                }
             }
         }
 
         /// <summary>
         /// Loads a game from file data
         /// </summary>
+        /// <param name="lines">Lines from the file</param>
         private void LoadGameFromFile(string[] lines)
         {
             Piece?[,] boardState = new Piece?[8, 8];
@@ -1112,6 +1360,9 @@ namespace ChessTrainer
         /// <summary>
         /// Parses a board row from file data
         /// </summary>
+        /// <param name="line">Line from the file</param>
+        /// <param name="row">Row index</param>
+        /// <param name="boardState">Board state to update</param>
         private void ParseBoardRow(string line, int row, Piece?[,] boardState)
         {
             // Board file formats:
@@ -1143,6 +1394,8 @@ namespace ChessTrainer
         /// <summary>
         /// Decodes a piece from the old file format
         /// </summary>
+        /// <param name="code">Piece code</param>
+        /// <returns>The decoded piece, or null for empty</returns>
         private Piece? DecodePieceOldFormat(string code)
         {
             if (code == ".") return null;
@@ -1170,6 +1423,8 @@ namespace ChessTrainer
         /// <summary>
         /// Decodes a piece from the new file format
         /// </summary>
+        /// <param name="code">Piece code</param>
+        /// <returns>The decoded piece, or null for empty</returns>
         private Piece? DecodePieceNewFormat(string code)
         {
             if (code == ".." || code.Length != 2) return null;
@@ -1218,6 +1473,8 @@ namespace ChessTrainer
         /// <summary>
         /// Creates a timer with the specified tick handler
         /// </summary>
+        /// <param name="tickHandler">Handler for timer ticks</param>
+        /// <returns>The created timer</returns>
         private DispatcherTimer CreateTimer(EventHandler tickHandler)
         {
             var timer = new DispatcherTimer(DispatcherPriority.Normal, Dispatcher.CurrentDispatcher)
@@ -1282,6 +1539,9 @@ namespace ChessTrainer
         /// <summary>
         /// Updates a player's remaining time
         /// </summary>
+        /// <param name="timeLeft">Reference to time left</param>
+        /// <param name="textBlock">TextBlock to update</param>
+        /// <param name="gameOverMessage">Message to show when time runs out</param>
         private void UpdateTimeLeft(ref TimeSpan timeLeft, TextBlock? textBlock, string gameOverMessage)
         {
             if (timeLeft > TimeSpan.Zero)
@@ -1325,6 +1585,10 @@ namespace ChessTrainer
         /// <summary>
         /// Sets a property value and raises PropertyChanged if value changed
         /// </summary>
+        /// <typeparam name="T">Type of the property</typeparam>
+        /// <param name="field">Reference to the field</param>
+        /// <param name="newValue">New value</param>
+        /// <param name="propertyName">Name of the property</param>
         private void SetProperty<T>(ref T field, T newValue, [System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
         {
             if (!Equals(field, newValue))
@@ -1337,6 +1601,7 @@ namespace ChessTrainer
         /// <summary>
         /// Raises the PropertyChanged event
         /// </summary>
+        /// <param name="propertyName">Name of the property that changed</param>
         protected virtual void OnPropertyChanged(string? propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -1345,6 +1610,8 @@ namespace ChessTrainer
         /// <summary>
         /// Shows a confirmation dialog
         /// </summary>
+        /// <param name="message">Message to show</param>
+        /// <returns>True if confirmed, false if cancelled</returns>
         private bool ShowConfirmation(string message)
         {
             return MessageBox.Show(
@@ -1358,6 +1625,8 @@ namespace ChessTrainer
         /// <summary>
         /// Gets a localized name for a piece type
         /// </summary>
+        /// <param name="pieceType">Type of the piece</param>
+        /// <returns>Localized name</returns>
         private string GetPieceTypeName(string pieceType)
         {
             return pieceType switch

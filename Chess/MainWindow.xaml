@@ -5,30 +5,26 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ChessTrainer"
         mc:Ignorable="d"
-        Title="ChessTrainer" Height="800" Width="1200"
+        Title="Шаховий тренажер" Height="800" Width="1200"
         MinHeight="600" MinWidth="800">
     <Window.Resources>
         <local:PieceConverter x:Key="PieceConverter" />
         <local:BooleanToVisibilityConverter x:Key="BooleanToVisibility"/>
     </Window.Resources>
 
-    <Grid  x:Name="MainGrid">
+    <Grid x:Name="MainGrid">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" MinWidth="600"/>
             <ColumnDefinition Width="300"/>
             <ColumnDefinition Width="Auto"/>
+            <!-- Увеличенная ширина колонки для боковой панели -->
+            <ColumnDefinition Width="150"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-
-        <!-- Piece selection panels -->
-        <StackPanel x:Name="WhitePiecePanel" Orientation="Horizontal" Grid.Row="0" Grid.Column="0" 
-                   Margin="10" Visibility="Collapsed"/>
-        <StackPanel x:Name="BlackPiecePanel" Orientation="Horizontal" Grid.Row="0" Grid.Column="0" 
-                   Margin="250,10,10,10" Visibility="Collapsed"/>
 
         <!-- Chess board -->
         <ItemsControl x:Name="ChessBoardItemsControl" ItemsSource="{Binding Board}" Grid.Row="1" Grid.Column="0">
@@ -46,7 +42,7 @@
                             <Style TargetType="Border">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                                        <!-- Красивая зеленая подсветка с градиентом -->
+                                        <!-- Highlighting with gradient -->
                                         <Setter Property="BorderBrush">
                                             <Setter.Value>
                                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
@@ -56,7 +52,7 @@
                                             </Setter.Value>
                                         </Setter>
                                         <Setter Property="BorderThickness" Value="3" />
-                                        <!-- Добавим тень для улучшения эффекта -->
+                                        <!-- Drop shadow effect -->
                                         <Setter Property="Effect">
                                             <Setter.Value>
                                                 <DropShadowEffect Color="#4CAF50" ShadowDepth="0" BlurRadius="10" Opacity="0.7" />
@@ -113,45 +109,67 @@
             <Button Content="Очистити Дошку" Click="ClearBoard_Click" Margin="5"/>
             <Button Content="Режим 2 Гравці" Click="SetTwoPlayersMode_Click" Margin="5"/>
             <Button Content="Режим проти Комп'ютера" Click="SetComputerMode_Click" Margin="5"/>
-            <ComboBox x:Name="DifficultyComboBox" Margin="5" Visibility="Collapsed" SelectionChanged="DifficultyComboBox_SelectionChanged">
-                <ComboBoxItem Content="Випадковий" Tag="Random"/>
-                <ComboBoxItem Content="Легкий" Tag="Easy"/>
-                <ComboBoxItem Content="Середній" Tag="Medium"/>
-                <ComboBoxItem Content="Складний" Tag="Hard"/>
-                <ComboBoxItem Content="Експерт" Tag="Expert"/>
-            </ComboBox>
+
+            <!-- Player color selection (only visible in computer mode) -->
+            <StackPanel Orientation="Vertical" 
+                      Visibility="{Binding IsComputerMode, Converter={StaticResource BooleanToVisibility}}"
+                      Margin="5">
+                <TextBlock Text="Виберіть колір:" FontWeight="Bold" Margin="0,10,0,5"/>
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton x:Name="PlayAsWhiteRadioButton" 
+                              Content="Грати за білих" 
+                              IsChecked="True"
+                              Checked="PlayerColorRadioButton_Checked"
+                              Margin="5"/>
+                    <RadioButton x:Name="PlayAsBlackRadioButton" 
+                              Content="Грати за чорних"
+                              Checked="PlayerColorRadioButton_Checked"
+                              Margin="5"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Difficulty dropdown -->
+            <StackPanel Margin="5" 
+                       Visibility="{Binding IsComputerMode, Converter={StaticResource BooleanToVisibility}}">
+                <TextBlock Text="Рівень складності:" FontWeight="Bold" Margin="0,10,0,5"/>
+                <ComboBox x:Name="DifficultyComboBox" 
+                         SelectionChanged="DifficultyComboBox_SelectionChanged"
+                         Margin="0,0,0,10">
+                    <ComboBoxItem Content="Випадковий" Tag="Random"/>
+                    <ComboBoxItem Content="Легкий" Tag="Easy"/>
+                    <ComboBoxItem Content="Середній" Tag="Medium"/>
+                    <ComboBoxItem Content="Складний" Tag="Hard"/>
+                    <ComboBoxItem Content="Експерт" Tag="Expert"/>
+                </ComboBox>
+            </StackPanel>
+
+            <Separator Margin="0,10,0,10"/>
+
             <Button Content="Зберегти Позицію" Click="SavePosition_Click" Margin="5"/>
             <Button Content="Завантажити Позицію" Click="LoadPosition_Click" Margin="5"/>
-            <Button Content="Розставити фігури самостійно" Click="SetupPosition_Click"  Margin="5"/>
-            <StackPanel Orientation="Horizontal"
-                    Visibility="{Binding IsComputerMode, 
-                                         Converter={StaticResource BooleanToVisibility}}">
-                <RadioButton x:Name="PlayAsWhiteRadioButton" 
-                         Content="Грати за білих" 
-                         IsChecked="True"
-                         Checked="PlayerColorRadioButton_Checked"
-                         Margin="5"/>
-                <RadioButton x:Name="PlayAsBlackRadioButton" 
-                         Content="Грати за чорних"
-                         Checked="PlayerColorRadioButton_Checked"
-                         Margin="5"/>
-            </StackPanel>
-            <CheckBox x:Name="FlipBoardCheckBox" Content="Перевернути Дошку" Checked="FlipBoardCheckBox_Checked" Unchecked="FlipBoardCheckBox_Checked" Margin="5"/>
+            <Button Content="Розставити фігури" Click="SetupPosition_Click"  Margin="5"/>
+            <CheckBox x:Name="FlipBoardCheckBox" Content="Перевернути Дошку" 
+                     Checked="FlipBoardCheckBox_Checked" 
+                     Unchecked="FlipBoardCheckBox_Checked" 
+                     Margin="5"/>
+
+            <!-- Move history -->
+            <TextBlock Text="Історія ходів:" FontWeight="Bold" Margin="0,20,0,5"/>
+            <ListBox x:Name="MoveHistoryListBox" Height="200" Margin="0,0,0,5"/>
         </StackPanel>
 
         <!-- Status bar -->
-        <TextBlock x:Name="StatusTextBlock" Grid.Column="0" Grid.Row="0" Text="Статус гри" Margin="10"/>
-        <TextBlock x:Name="GameResultTextBlock" Grid.Column="0" Grid.Row="2" Text="{Binding GameResultText}" Margin="10"/>
+        <TextBlock x:Name="StatusTextBlock" Grid.Column="0" Grid.Row="0" 
+                  Text="Статус гри" Margin="10" FontSize="14" FontWeight="Bold"/>
+        <TextBlock x:Name="GameResultTextBlock" Grid.Column="0" Grid.Row="2" 
+                  Text="{Binding GameResultText}" Margin="10"/>
 
         <!-- Chess clocks -->
         <StackPanel Grid.Column="2" Grid.Row="1" Margin="10,10,10,10">
             <TextBlock Text="Час Білих:" FontWeight="Bold" Margin="5"/>
-            <TextBlock x:Name="WhiteTimeTextBlock" Text="00:30:00" Margin="5"/>
+            <TextBlock x:Name="WhiteTimeTextBlock" Text="00:30:00" Margin="5" FontFamily="Consolas"/>
             <TextBlock Text="Час Чорних:" FontWeight="Bold" Margin="5"/>
-            <TextBlock x:Name="BlackTimeTextBlock" Text="00:30:00" Margin="5"/>
+            <TextBlock x:Name="BlackTimeTextBlock" Text="00:30:00" Margin="5" FontFamily="Consolas"/>
         </StackPanel>
-
-        <!-- Move history -->
-        <ListBox x:Name="MoveHistoryListBox" Grid.Column="1" Grid.Row="1" Margin="5,0,10,10" Height="290" VerticalAlignment="Bottom"/>
     </Grid>
 </Window>

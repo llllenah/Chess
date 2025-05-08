@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Media;
 
 namespace ChessTrainer
@@ -38,6 +39,11 @@ namespace ChessTrainer
         /// Random number generator for AI decisions
         /// </summary>
         private readonly Random _random = new Random();
+
+        /// <summary>
+        /// Action to display pawn promotion dialog
+        /// </summary>
+        private Func<string, string> _showPromotionDialog;
 
         #endregion
 
@@ -98,6 +104,11 @@ namespace ChessTrainer
         /// </summary>
         public event EventHandler<GameEndEventArgs>? GameEnded;
 
+        /// <summary>
+        /// Event raised when a pawn needs promotion
+        /// </summary>
+        public event EventHandler<PawnPromotionEventArgs>? PawnPromotion;
+
         #endregion
 
         #region Constructor
@@ -109,6 +120,18 @@ namespace ChessTrainer
         {
             _board = new Board();
             InitializeGame();
+
+            // Default promotion to queen if no handler is set
+            _showPromotionDialog = (color) => "queen";
+        }
+
+        /// <summary>
+        /// Sets the callback for pawn promotion dialog
+        /// </summary>
+        /// <param name="promotionCallback">Function that takes color and returns piece type</param>
+        public void SetPromotionDialogCallback(Func<string, string> promotionCallback)
+        {
+            _showPromotionDialog = promotionCallback;
         }
 
         #endregion
@@ -158,8 +181,8 @@ namespace ChessTrainer
                 for (int col = 0; col < 8; col++)
                 {
                     // Handle board orientation based on player color
-                    int displayRow = _playerPlaysBlack ? 7 - row : row;
-                    int displayCol = _playerPlaysBlack ? 7 - col : col;
+                    int displayRow = row;
+                    int displayCol = col;
 
                     Piece? piece = _board.GetPiece(row, col);
 
@@ -186,6 +209,22 @@ namespace ChessTrainer
         }
 
         /// <summary>
+        /// Checks if it's currently the human player's turn
+        /// </summary>
+        /// <returns>True if it's the human player's turn, false if it's the computer's turn</returns>
+        public bool IsPlayerTurn()
+        {
+            if (!_isComputerMode)
+                return true; // В режиме двух игроков всегда разрешаем ходы
+
+            // В режиме с компьютером, проверяем соответствует ли текущий игрок цвету человека
+            bool isPlayerTurn = (_playerPlaysBlack && _currentPlayer == "black") ||
+                               (!_playerPlaysBlack && _currentPlayer == "white");
+
+            return isPlayerTurn;
+        }
+
+        /// <summary>
         /// Switches the player's color and resets the game
         /// </summary>
         public void SwitchPlayerColor()
@@ -208,70 +247,98 @@ namespace ChessTrainer
         /// <returns>True if the move was valid and executed</returns>
         public bool TryMovePiece(int startRow, int startCol, int endRow, int endCol)
         {
-            // Check if it's player's turn in computer mode
-            if (_isComputerMode)
-            {
-                bool isPlayerTurn = (_playerPlaysBlack && _currentPlayer == "black") ||
-                                   (!_playerPlaysBlack && _currentPlayer == "white");
+            // Проверяем, чей сейчас ход в компьютерном режиме
+            if (!IsPlayerTurn())
+                return false;
 
-                if (!isPlayerTurn)
-                    return false;
-            }
+            // Проверяем, что это ход текущего игрока
+            Piece? piece = _board.GetPiece(startRow, startCol);
+            if (piece == null || piece.Color != _currentPlayer)
+                return false;
 
-            // Validate and execute the move
+            // Валидируем и выполняем ход
             if (_board.IsValidMove(startRow, startCol, endRow, endCol, _currentPlayer))
             {
-                // Get moved and captured pieces
+                // Получаем перемещенную и взятую фигуры
                 Piece? movedPiece = _board.GetPiece(startRow, startCol);
                 Piece? capturedPiece = _board.GetPiece(endRow, endCol);
 
-                // Execute the move
+                // Выполняем ход
                 _board.MovePiece(startRow, startCol, endRow, endCol);
 
-                // Create move information
+                // Создаем информацию о ходе
                 string moveNotation = GetMoveNotation(movedPiece, startRow, startCol, endRow, endCol, capturedPiece);
 
-                // Handle pawn promotion
+                // Обрабатываем продвижение пешки
+                bool wasPromoted = false;
                 if (IsPawnPromotion(endRow, endCol))
                 {
-                    PromotePawn(endRow, endCol);
+                    wasPromoted = HandlePawnPromotion(endRow, endCol);
+                    if (!wasPromoted)
+                    {
+                        // Если продвижение было отменено, отменяем ход
+                        _board.MovePiece(endRow, endCol, startRow, startCol);
+                        if (capturedPiece != null)
+                        {
+                            _board.SetPiece(endRow, endCol, capturedPiece);
+                        }
+                        return false;
+                    }
                 }
-
-                // Notify that a move was made
+                // Уведомляем о выполненном ходе
                 OnMoveMade(new MoveEventArgs(startRow, startCol, endRow, endCol, moveNotation));
 
-                // Check for game end by king capture
+                // Проверяем, не закончилась ли игра взятием короля
                 if (capturedPiece?.Type == "king")
                 {
                     OnGameEnded(new GameEndEventArgs(GameEndType.KingCaptured, _currentPlayer));
                     return true;
                 }
 
-                // Switch players
+                // Переключаем игроков
                 SwitchPlayer();
 
-                // Check for checkmate or stalemate for the new current player
+                // Проверяем шах и мат для нового текущего игрока
                 GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
                 if (endType != GameEndType.None)
                 {
-                    // The winner is the player who just moved
+                    // Победитель - игрок, который только что сделал ход
                     string winner = _currentPlayer == "white" ? "black" : "white";
                     OnGameEnded(new GameEndEventArgs(endType, winner));
                     return true;
                 }
 
-                // Update the board
+                // Обновляем доску
                 OnBoardUpdated();
+
+                // Если режим игры с компьютером и сейчас ход компьютера, выполняем ход
+                if (_isComputerMode && !IsPlayerTurn())
+                {
+                    // Делаем ход компьютера асинхронно, чтобы не замораживать UI
+                    Task.Run(() =>
+                    {
+                        // Небольшая задержка для лучшего пользовательского опыта
+                        System.Threading.Thread.Sleep(500);
+
+                        // Выполняем ход компьютера
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            MakeComputerMove();
+                        });
+                    });
+                }
 
                 return true;
             }
 
             return false;
         }
-
         /// <summary>
         /// Checks if a pawn needs promotion
         /// </summary>
+        /// <param name="row">Pawn's row position</param>
+        /// <param name="col">Pawn's column position</param>
+        /// <returns>True if pawn should be promoted</returns>
         private bool IsPawnPromotion(int row, int col)
         {
             Piece? piece = _board.GetPiece(row, col);
@@ -282,18 +349,48 @@ namespace ChessTrainer
         }
 
         /// <summary>
-        /// Promotes a pawn to a queen
+        /// Handles pawn promotion with dialog or automatic promotion
         /// </summary>
-        private void PromotePawn(int row, int col)
+        /// <param name="row">Pawn's row position</param>
+        /// <param name="col">Pawn's column position</param>
+        /// <returns>True if promotion was successful, false if cancelled</returns>
+        private bool HandlePawnPromotion(int row, int col)
         {
             Piece? pawn = _board.GetPiece(row, col);
 
             if (pawn?.Type == "pawn")
             {
-                // Automatically promote to queen (could be modified to show selection dialog)
-                _board.SetPiece(row, col, new Piece(pawn.Color, "queen"));
+                // Get pawn color
+                string pawnColor = pawn.Color;
+
+                // For computer, automatically promote to queen
+                if (_isComputerMode && !IsPlayerTurn())
+                {
+                    _board.SetPiece(row, col, new Piece(pawnColor, "queen"));
+                    OnBoardUpdated();
+                    return true;
+                }
+
+                // Raise the event for UI to show promotion dialog
+                var args = new PawnPromotionEventArgs(row, col, pawnColor);
+                OnPawnPromotion(args);
+
+                // If user cancelled promotion, return false
+                if (args.IsCancelled)
+                    return false;
+
+                // Get piece type from dialog or default
+                string pieceType = string.IsNullOrEmpty(args.PromotionPiece)
+                    ? _showPromotionDialog(pawnColor)
+                    : args.PromotionPiece;
+
+                // Set the new piece
+                _board.SetPiece(row, col, new Piece(pawnColor, pieceType));
                 OnBoardUpdated();
+                return true;
             }
+
+            return false;
         }
 
         /// <summary>
@@ -307,6 +404,13 @@ namespace ChessTrainer
         /// <summary>
         /// Generates chess notation for a move
         /// </summary>
+        /// <param name="piece">The piece that moved</param>
+        /// <param name="startRow">Starting row</param>
+        /// <param name="startCol">Starting column</param>
+        /// <param name="endRow">Ending row</param>
+        /// <param name="endCol">Ending column</param>
+        /// <param name="capturedPiece">Piece that was captured, if any</param>
+        /// <returns>Algebraic notation for the move</returns>
         private string GetMoveNotation(Piece? piece, int startRow, int startCol, int endRow, int endCol, Piece? capturedPiece)
         {
             if (piece == null) return "";
@@ -340,36 +444,40 @@ namespace ChessTrainer
         /// </summary>
         public void MakeComputerMove()
         {
-            // Determine computer's color
+            // Определяем цвет компьютера
             string computerColor = _playerPlaysBlack ? "white" : "black";
 
-            // Check if it's computer's turn
+            // Проверяем, действительно ли сейчас ход компьютера
             if ((_playerPlaysBlack && _currentPlayer == "white") ||
                 (!_playerPlaysBlack && _currentPlayer == "black"))
             {
-                // Get all possible moves
+                // Получаем все возможные ходы
                 var possibleMoves = _board.GetAllPossibleMovesForPlayer(computerColor);
 
                 if (possibleMoves.Count > 0)
                 {
-                    // Select the best move based on difficulty
+                    // Выбираем лучший ход на основе сложности
                     Move? selectedMove = GetBestMove(possibleMoves, (int)CurrentDifficulty, computerColor == "white");
 
                     if (selectedMove != null)
                     {
-                        // Execute the move
+                        // Выполняем ход
                         Piece? movedPiece = _board.GetPiece(selectedMove.StartRow, selectedMove.StartCol);
                         Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
 
                         _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
 
-                        // Handle pawn promotion
+                        // Обрабатываем продвижение пешки (компьютер всегда превращает в ферзя)
                         if (IsPawnPromotion(selectedMove.EndRow, selectedMove.EndCol))
                         {
-                            PromotePawn(selectedMove.EndRow, selectedMove.EndCol);
+                            Piece? pawn = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
+                            if (pawn != null)
+                            {
+                                _board.SetPiece(selectedMove.EndRow, selectedMove.EndCol, new Piece(pawn.Color, "queen"));
+                            }
                         }
 
-                        // Create move notation
+                        // Создаем нотацию хода
                         string moveNotation = GetMoveNotation(
                             movedPiece,
                             selectedMove.StartRow,
@@ -379,7 +487,7 @@ namespace ChessTrainer
                             capturedPiece
                         );
 
-                        // Notify that a move was made
+                        // Уведомляем о выполненном ходе
                         OnMoveMade(new MoveEventArgs(
                             selectedMove.StartRow,
                             selectedMove.StartCol,
@@ -388,17 +496,17 @@ namespace ChessTrainer
                             moveNotation
                         ));
 
-                        // Check for king capture
+                        // Проверяем взятие короля
                         if (capturedPiece?.Type == "king")
                         {
                             OnGameEnded(new GameEndEventArgs(GameEndType.KingCaptured, computerColor));
                             return;
                         }
 
-                        // Switch players
+                        // Переключаем игроков
                         SwitchPlayer();
 
-                        // Check for checkmate or stalemate
+                        // Проверяем шах и мат
                         GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
                         if (endType != GameEndType.None)
                         {
@@ -407,13 +515,12 @@ namespace ChessTrainer
                             return;
                         }
 
-                        // Update the board
+                        // Обновляем доску
                         OnBoardUpdated();
                     }
                 }
             }
         }
-
         #endregion
 
         #region AI Methods
@@ -460,6 +567,10 @@ namespace ChessTrainer
         /// <summary>
         /// Gets the best move using the minimax algorithm
         /// </summary>
+        /// <param name="possibleMoves">List of possible moves</param>
+        /// <param name="depth">Search depth</param>
+        /// <param name="maximizingPlayer">True if AI is white (maximizing), false if black (minimizing)</param>
+        /// <returns>Best move according to the minimax algorithm</returns>
         private Move? GetBestMoveMinimax(List<Move> possibleMoves, int depth, bool maximizingPlayer)
         {
             if (possibleMoves.Count == 0 || depth == 0)
@@ -525,6 +636,12 @@ namespace ChessTrainer
         /// <summary>
         /// Gets the best move using alpha-beta pruning
         /// </summary>
+        /// <param name="possibleMoves">List of possible moves</param>
+        /// <param name="depth">Search depth</param>
+        /// <param name="maximizingPlayer">True if AI is white (maximizing), false if black (minimizing)</param>
+        /// <param name="alpha">Alpha value for pruning</param>
+        /// <param name="beta">Beta value for pruning</param>
+        /// <returns>Best move according to alpha-beta pruning</returns>
         private Move? GetBestMoveAlphaBeta(List<Move> possibleMoves, int depth, bool maximizingPlayer,
                                           int alpha = int.MinValue, int beta = int.MaxValue)
         {
@@ -596,6 +713,10 @@ namespace ChessTrainer
         /// <summary>
         /// Gets the best move using parallel alpha-beta pruning
         /// </summary>
+        /// <param name="possibleMoves">List of possible moves</param>
+        /// <param name="depth">Search depth</param>
+        /// <param name="maximizingPlayer">True if AI is white (maximizing), false if black (minimizing)</param>
+        /// <returns>Best move according to parallel alpha-beta pruning</returns>
         private Move? GetBestMoveParallel(List<Move> possibleMoves, int depth, bool maximizingPlayer)
         {
             if (possibleMoves.Count == 0 || depth == 0)
@@ -690,6 +811,15 @@ namespace ChessTrainer
             GameEnded?.Invoke(this, e);
         }
 
+        /// <summary>
+        /// Raises the PawnPromotion event
+        /// </summary>
+        /// <param name="e">Event arguments</param>
+        protected virtual void OnPawnPromotion(PawnPromotionEventArgs e)
+        {
+            PawnPromotion?.Invoke(this, e);
+        }
+
         #endregion
     }
 
@@ -728,6 +858,11 @@ namespace ChessTrainer
         /// <summary>
         /// Creates a new MoveEventArgs instance
         /// </summary>
+        /// <param name="startRow">Starting row</param>
+        /// <param name="startCol">Starting column</param>
+        /// <param name="endRow">Ending row</param>
+        /// <param name="endCol">Ending column</param>
+        /// <param name="moveNotation">Algebraic notation for the move</param>
         public MoveEventArgs(int startRow, int startCol, int endRow, int endCol, string moveNotation)
         {
             StartRow = startRow;
@@ -756,10 +891,56 @@ namespace ChessTrainer
         /// <summary>
         /// Creates a new GameEndEventArgs instance
         /// </summary>
+        /// <param name="endType">Type of game end</param>
+        /// <param name="winnerColor">Color of the winning player</param>
         public GameEndEventArgs(GameEndType endType, string winnerColor)
         {
             EndType = endType;
             WinnerColor = winnerColor;
+        }
+    }
+
+    /// <summary>
+    /// Event arguments for pawn promotion
+    /// </summary>
+    public class PawnPromotionEventArgs : EventArgs
+    {
+        /// <summary>
+        /// Gets the row of the pawn
+        /// </summary>
+        public int Row { get; }
+
+        /// <summary>
+        /// Gets the column of the pawn
+        /// </summary>
+        public int Col { get; }
+
+        /// <summary>
+        /// Gets the color of the pawn
+        /// </summary>
+        public string PawnColor { get; }
+
+        /// <summary>
+        /// Gets or sets the piece type to promote to
+        /// </summary>
+        public string PromotionPiece { get; set; } = "";
+
+        /// <summary>
+        /// Gets or sets whether the promotion was cancelled
+        /// </summary>
+        public bool IsCancelled { get; set; } = false;
+
+        /// <summary>
+        /// Creates a new PawnPromotionEventArgs instance
+        /// </summary>
+        /// <param name="row">Pawn's row position</param>
+        /// <param name="col">Pawn's column position</param>
+        /// <param name="pawnColor">Color of the pawn</param>
+        public PawnPromotionEventArgs(int row, int col, string pawnColor)
+        {
+            Row = row;
+            Col = col;
+            PawnColor = pawnColor;
         }
     }
 

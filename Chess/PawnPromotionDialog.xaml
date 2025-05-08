@@ -1,0 +1,46 @@
+﻿<Window x:Class="ChessTrainer.PawnPromotionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ChessTrainer"
+        mc:Ignorable="d"
+        Title="Pawn Promotion" 
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterOwner"
+         Height="298" Width="494">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" 
+                  Text="Select a piece to promote your pawn to:" 
+                  Margin="0,0,0,10" 
+                  HorizontalAlignment="Center"/>
+
+        <StackPanel Grid.Row="1" 
+                   Orientation="Horizontal" 
+                   HorizontalAlignment="Center" 
+                   Margin="0,0,0,15">
+            <!-- These RadioButtons will be created in code-behind -->
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" 
+                   Orientation="Horizontal" 
+                   HorizontalAlignment="Center">
+            <Button Content="OK" 
+                   Width="80" 
+                   Margin="5" 
+                   IsDefault="True" 
+                   Click="OkButton_Click"/>
+            <Button Content="Cancel" 
+                   Width="80" 
+                   Margin="5" 
+                   IsCancel="True" 
+                   Click="CancelButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
