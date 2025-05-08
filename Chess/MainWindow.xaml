@@ -9,10 +9,10 @@
         MinHeight="600" MinWidth="800">
     <Window.Resources>
         <local:PieceConverter x:Key="PieceConverter" />
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibility"/>
+        <local:BooleanToVisibilityConverter x:Key="BooleanToVisibility"/>
     </Window.Resources>
 
-    <Grid>
+    <Grid  x:Name="MainGrid">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" MinWidth="600"/>
             <ColumnDefinition Width="300"/>
@@ -24,6 +24,13 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- Piece selection panels -->
+        <StackPanel x:Name="WhitePiecePanel" Orientation="Horizontal" Grid.Row="0" Grid.Column="0" 
+                   Margin="10" Visibility="Collapsed"/>
+        <StackPanel x:Name="BlackPiecePanel" Orientation="Horizontal" Grid.Row="0" Grid.Column="0" 
+                   Margin="250,10,10,10" Visibility="Collapsed"/>
+
+        <!-- Chess board -->
         <ItemsControl x:Name="ChessBoardItemsControl" ItemsSource="{Binding Board}" Grid.Row="1" Grid.Column="0">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -32,9 +39,9 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Border Background="{Binding CellColor}" AllowDrop="True"
-                DragEnter="BoardCell_DragEnter" Drop="BoardCell_Drop"
-                MouseLeftButtonDown="BoardCell_MouseLeftButtonDown">
+                    <Border Background="{Binding Background}" AllowDrop="True"
+                            DragEnter="BoardCell_DragEnter" Drop="BoardCell_Drop"
+                            MouseLeftButtonDown="BoardCell_MouseLeftButtonDown">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Style.Triggers>
@@ -60,59 +67,58 @@
                             </Style>
                         </Border.Style>
                         <TextBlock
-                FontSize="40"
-                FontFamily="Segoe UI Symbol"
-                FontWeight="Bold"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                TextWrapping="NoWrap">
+                            FontSize="40"
+                            FontFamily="Segoe UI Symbol"
+                            FontWeight="Bold"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            TextWrapping="NoWrap">
 
-                <!-- Символ фігури -->
+                            <!-- Piece symbol with fallback values for null handling -->
                             <TextBlock.Text>
-                                <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="text">
-                                    <Binding Path="Piece.Color" />
-                                    <Binding Path="Piece.Type" />
+                                <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="text" FallbackValue="">
+                                    <Binding Path="Piece.Color" FallbackValue=""/>
+                                    <Binding Path="Piece.Type" FallbackValue=""/>
                                 </MultiBinding>
                             </TextBlock.Text>
 
-                <!-- Колір фігури -->
+                            <!-- Piece color with fallback -->
                             <TextBlock.Foreground>
-                                <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="fill">
-                                    <Binding Path="Piece.Color" />
-                                    <Binding Path="Piece.Type" />
+                                <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="fill" FallbackValue="Black">
+                                    <Binding Path="Piece.Color" FallbackValue=""/>
+                                    <Binding Path="Piece.Type" FallbackValue=""/>
                                 </MultiBinding>
                             </TextBlock.Foreground>
 
-                <!-- Ефект обводу (stroke) через TextEffect -->
+                            <!-- Piece outline with fallback -->
                             <TextBlock.TextEffects>
                                 <TextEffect>
                                     <TextEffect.Foreground>
-                                        <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="stroke">
-                                            <Binding Path="Piece.Color" />
-                                            <Binding Path="Piece.Type" />
+                                        <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="stroke" FallbackValue="Transparent">
+                                            <Binding Path="Piece.Color" FallbackValue=""/>
+                                            <Binding Path="Piece.Type" FallbackValue=""/>
                                         </MultiBinding>
                                     </TextEffect.Foreground>
                                 </TextEffect>
                             </TextBlock.TextEffects>
                         </TextBlock>
-
                     </Border>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
-
         </ItemsControl>
 
+        <!-- Control panel -->
         <StackPanel Grid.Column="1" Grid.Row="1" Margin="10">
             <Button Content="Нова Гра" Click="StartNewGame_Click" Margin="5"/>
             <Button Content="Очистити Дошку" Click="ClearBoard_Click" Margin="5"/>
             <Button Content="Режим 2 Гравці" Click="SetTwoPlayersMode_Click" Margin="5"/>
             <Button Content="Режим проти Комп'ютера" Click="SetComputerMode_Click" Margin="5"/>
             <ComboBox x:Name="DifficultyComboBox" Margin="5" Visibility="Collapsed" SelectionChanged="DifficultyComboBox_SelectionChanged">
-                <ComboBoxItem Content="Random"/>
-                <ComboBoxItem Content="Easy"/>
-                <ComboBoxItem Content="Medium"/>
-                <ComboBoxItem Content="Hard"/>
-                <ComboBoxItem Content="Expert"/>
+                <ComboBoxItem Content="Випадковий" Tag="Random"/>
+                <ComboBoxItem Content="Легкий" Tag="Easy"/>
+                <ComboBoxItem Content="Середній" Tag="Medium"/>
+                <ComboBoxItem Content="Складний" Tag="Hard"/>
+                <ComboBoxItem Content="Експерт" Tag="Expert"/>
             </ComboBox>
             <Button Content="Зберегти Позицію" Click="SavePosition_Click" Margin="5"/>
             <Button Content="Завантажити Позицію" Click="LoadPosition_Click" Margin="5"/>
@@ -133,24 +139,19 @@
             <CheckBox x:Name="FlipBoardCheckBox" Content="Перевернути Дошку" Checked="FlipBoardCheckBox_Checked" Unchecked="FlipBoardCheckBox_Checked" Margin="5"/>
         </StackPanel>
 
+        <!-- Status bar -->
         <TextBlock x:Name="StatusTextBlock" Grid.Column="0" Grid.Row="0" Text="Статус гри" Margin="10"/>
         <TextBlock x:Name="GameResultTextBlock" Grid.Column="0" Grid.Row="2" Text="{Binding GameResultText}" Margin="10"/>
 
-        <StackPanel Grid.Column="2" Grid.Row="1" Margin="10,10,-133,10" RenderTransformOrigin="0.5,0.5">
-            <StackPanel.RenderTransform>
-                <TransformGroup>
-                    <ScaleTransform/>
-                    <SkewTransform AngleY="-0.452"/>
-                    <RotateTransform/>
-                    <TranslateTransform Y="-0.325"/>
-                </TransformGroup>
-            </StackPanel.RenderTransform>
+        <!-- Chess clocks -->
+        <StackPanel Grid.Column="2" Grid.Row="1" Margin="10,10,10,10">
             <TextBlock Text="Час Білих:" FontWeight="Bold" Margin="5"/>
             <TextBlock x:Name="WhiteTimeTextBlock" Text="00:30:00" Margin="5"/>
             <TextBlock Text="Час Чорних:" FontWeight="Bold" Margin="5"/>
             <TextBlock x:Name="BlackTimeTextBlock" Text="00:30:00" Margin="5"/>
         </StackPanel>
 
+        <!-- Move history -->
         <ListBox x:Name="MoveHistoryListBox" Grid.Column="1" Grid.Row="1" Margin="5,0,10,10" Height="290" VerticalAlignment="Bottom"/>
     </Grid>
 </Window>
