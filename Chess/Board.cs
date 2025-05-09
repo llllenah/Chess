@@ -17,6 +17,11 @@ namespace ChessTrainer
         private Piece?[,] _pieces = new Piece[8, 8];
 
         /// <summary>
+        /// Tracks pieces that have moved (for castling)
+        /// </summary>
+        private HashSet<string> _movedPieces = new HashSet<string>();
+
+        /// <summary>
         /// Event fired when the board state is updated
         /// </summary>
         public event EventHandler? BoardUpdated;
@@ -41,6 +46,7 @@ namespace ChessTrainer
         {
             _pieces = new Piece[8, 8];
             ClonePieces(initialPieces, _pieces);
+            _movedPieces.Clear();
         }
 
         #endregion
@@ -60,6 +66,9 @@ namespace ChessTrainer
 
             // Set up black pieces
             SetupPieces("black");
+
+            // Reset moved pieces tracking
+            _movedPieces.Clear();
 
             // Notify that the board has been updated
             OnBoardUpdated();
@@ -104,6 +113,7 @@ namespace ChessTrainer
                 }
             }
 
+            _movedPieces.Clear();
             OnBoardUpdated();
         }
 
@@ -198,8 +208,54 @@ namespace ChessTrainer
 
             if (movedPiece != null)
             {
-                _pieces[endRow, endCol] = movedPiece;
-                _pieces[startRow, startCol] = null;
+                // Track piece movement (for castling rules)
+                string pieceId = $"{movedPiece.Color}_{movedPiece.Type}_{startRow}_{startCol}";
+                _movedPieces.Add(pieceId);
+
+                // Handle castling
+                if (movedPiece.Type == "king" && Math.Abs(endCol - startCol) == 2)
+                {
+                    // Move the king
+                    _pieces[endRow, endCol] = movedPiece;
+                    _pieces[startRow, startCol] = null;
+
+                    // Move the appropriate rook
+                    if (endCol > startCol) // Kingside castle
+                    {
+                        // Move rook from h-file to f-file
+                        Piece? rook = GetPiece(startRow, 7);
+                        _pieces[startRow, 5] = rook; // Place rook on f-file
+                        _pieces[startRow, 7] = null; // Remove rook from h-file
+
+                        // Mark rook as moved
+                        if (rook != null)
+                        {
+                            string rookId = $"{rook.Color}_{rook.Type}_{startRow}_{7}";
+                            _movedPieces.Add(rookId);
+                        }
+                    }
+                    else // Queenside castle
+                    {
+                        // Move rook from a-file to d-file
+                        Piece? rook = GetPiece(startRow, 0);
+                        _pieces[startRow, 3] = rook; // Place rook on d-file
+                        _pieces[startRow, 0] = null; // Remove rook from a-file
+
+                        // Mark rook as moved
+                        if (rook != null)
+                        {
+                            string rookId = $"{rook.Color}_{rook.Type}_{startRow}_{0}";
+                            _movedPieces.Add(rookId);
+                        }
+                    }
+                }
+                else
+                {
+                    // Standard move
+                    _pieces[endRow, endCol] = movedPiece;
+                    _pieces[startRow, startCol] = null;
+                }
+
                 OnBoardUpdated();
             }
 
@@ -271,7 +327,7 @@ namespace ChessTrainer
                     return IsValidQueenMove(startRow, startCol, endRow, endCol, absRowDiff, absColDiff);
 
                 case "king":
-                    return IsValidKingMove(absRowDiff, absColDiff);
+                    return IsValidKingMove(startRow, startCol, endRow, endCol, absRowDiff, absColDiff);
 
                 default:
                     return false;
@@ -285,24 +341,29 @@ namespace ChessTrainer
         {
             int direction = (color == "white") ? -1 : 1; // White moves up, black moves down
             int colDiff = endCol - startCol;
+            int rowDiff = endRow - startRow;
             int absColDiff = Math.Abs(colDiff);
 
             // Normal forward movement (one square)
-            if (colDiff == 0 && endRow == startRow + direction && GetPiece(endRow, endCol) == null)
+            if (colDiff == 0 && rowDiff == direction && GetPiece(endRow, endCol) == null)
                 return true;
 
             // Initial two-square move
-            if (colDiff == 0 && endRow == startRow + 2 * direction &&
+            if (colDiff == 0 && rowDiff == 2 * direction &&
                 ((color == "white" && startRow == 6) || (color == "black" && startRow == 1)) &&
                 GetPiece(startRow + direction, startCol) == null &&
                 GetPiece(endRow, endCol) == null)
                 return true;
 
             // Capture move (diagonal)
-            if (absColDiff == 1 && endRow == startRow + direction &&
-                GetPiece(endRow, endCol) != null &&
-                GetPiece(endRow, endCol)?.Color != color)
-                return true;
+            if (absColDiff == 1 && rowDiff == direction)
+            {
+                // Regular capture
+                Piece? targetPiece = GetPiece(endRow, endCol);
+                if (targetPiece != null && targetPiece.Color != color)
+                    return true;
+
+            }
 
             return false;
         }
@@ -357,10 +418,96 @@ namespace ChessTrainer
         /// <summary>
         /// Checks if a king move is valid
         /// </summary>
-        private bool IsValidKingMove(int absRowDiff, int absColDiff)
+        private bool IsValidKingMove(int startRow, int startCol, int endRow, int endCol, int absRowDiff, int absColDiff)
         {
-            // Kings move one square in any direction
-            return absRowDiff <= 1 && absColDiff <= 1;
+            // Normal king move (one square in any direction)
+            if (absRowDiff <= 1 && absColDiff <= 1)
+                return true;
+
+            // Check for castling
+            if (absRowDiff == 0 && absColDiff == 2)
+            {
+                return IsValidCastling(startRow, startCol, endRow, endCol);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Checks if a castling move is valid
+        /// </summary>
+        private bool IsValidCastling(int startRow, int startCol, int endRow, int endCol)
+        {
+            Piece? king = GetPiece(startRow, startCol);
+            if (king == null || king.Type != "king")
+                return false;
+
+            string kingColor = king.Color;
+            string kingId = $"{kingColor}_king_{startRow}_{startCol}";
+
+            // King must not have moved
+            if (_movedPieces.Contains(kingId))
+                return false;
+
+            // King must be in starting position
+            if (startCol != 4 || (kingColor == "white" && startRow != 7) || (kingColor == "black" && startRow != 0))
+                return false;
+
+            // King must not be in check
+            string opponentColor = kingColor == "white" ? "black" : "white";
+            if (IsPositionUnderAttack(startRow, startCol, opponentColor))
+                return false;
+
+            // Check if castling kingside (to the right)
+            if (endCol == 6)
+            {
+                // Check if rook is in place
+                Piece? rook = GetPiece(startRow, 7);
+                if (rook == null || rook.Type != "rook" || rook.Color != kingColor)
+                    return false;
+
+                // Rook must not have moved
+                string rookId = $"{kingColor}_rook_{startRow}_7";
+                if (_movedPieces.Contains(rookId))
+                    return false;
+
+                // Path must be clear
+                if (GetPiece(startRow, 5) != null || GetPiece(startRow, 6) != null)
+                    return false;
+
+                // King must not pass through or end on a square that is under attack
+                if (IsPositionUnderAttack(startRow, 5, opponentColor) ||
+                    IsPositionUnderAttack(startRow, 6, opponentColor))
+                    return false;
+
+                return true;
+            }
+            // Check if castling queenside (to the left)
+            else if (endCol == 2)
+            {
+                // Check if rook is in place
+                Piece? rook = GetPiece(startRow, 0);
+                if (rook == null || rook.Type != "rook" || rook.Color != kingColor)
+                    return false;
+
+                // Rook must not have moved
+                string rookId = $"{kingColor}_rook_{startRow}_0";
+                if (_movedPieces.Contains(rookId))
+                    return false;
+
+                // Path must be clear
+                if (GetPiece(startRow, 1) != null || GetPiece(startRow, 2) != null || GetPiece(startRow, 3) != null)
+                    return false;
+
+                // King must not pass through or end on a square that is under attack
+                if (IsPositionUnderAttack(startRow, 3, opponentColor) ||
+                    IsPositionUnderAttack(startRow, 2, opponentColor))
+                    return false;
+
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -589,14 +736,6 @@ namespace ChessTrainer
             }
 
             return false; // King not found
-        }
-
-        /// <summary>
-        /// Checks if the king of the specified color is in check after a hypothetical move
-        /// </summary>
-        public bool IsKingInCheck(int kingRow, int kingCol, string attackingColor)
-        {
-            return IsPositionUnderAttack(kingRow, kingCol, attackingColor);
         }
 
         /// <summary>

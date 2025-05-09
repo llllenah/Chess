@@ -45,6 +45,11 @@ namespace ChessTrainer
         /// </summary>
         private Func<string, string> _showPromotionDialog;
 
+        /// <summary>
+        /// Counter for the 50-move rule
+        /// </summary>
+        private int _halfMovesSinceCaptureOrPawn = 0;
+
         #endregion
 
         #region Properties
@@ -145,6 +150,7 @@ namespace ChessTrainer
         {
             _board.InitializeBoard();
             _currentPlayer = "white"; // Chess always starts with white
+            _halfMovesSinceCaptureOrPawn = 0;
 
             OnBoardUpdated();
 
@@ -164,6 +170,7 @@ namespace ChessTrainer
         {
             _board = new Board(boardState);
             _currentPlayer = currentPlayer;
+            _halfMovesSinceCaptureOrPawn = 0;
 
             OnBoardUpdated();
         }
@@ -205,7 +212,6 @@ namespace ChessTrainer
         public void SetComputerMode(bool isComputerMode)
         {
             _isComputerMode = isComputerMode;
-            _currentPlayer = "white"; // Reset to white's turn
         }
 
         /// <summary>
@@ -215,9 +221,9 @@ namespace ChessTrainer
         public bool IsPlayerTurn()
         {
             if (!_isComputerMode)
-                return true; // В режиме двух игроков всегда разрешаем ходы
+                return true; // In two-player mode, always allow moves
 
-            // В режиме с компьютером, проверяем соответствует ли текущий игрок цвету человека
+            // In computer mode, check if current player matches human player's color
             bool isPlayerTurn = (_playerPlaysBlack && _currentPlayer == "black") ||
                                (!_playerPlaysBlack && _currentPlayer == "white");
 
@@ -225,12 +231,12 @@ namespace ChessTrainer
         }
 
         /// <summary>
-        /// Switches the player's color and resets the game
+        /// Clears the board
         /// </summary>
-        public void SwitchPlayerColor()
+        public void ClearBoard()
         {
-            _playerPlaysBlack = !_playerPlaysBlack;
-            InitializeGame();
+            _board.ClearBoard();
+            _halfMovesSinceCaptureOrPawn = 0;
         }
 
         #endregion
@@ -247,36 +253,49 @@ namespace ChessTrainer
         /// <returns>True if the move was valid and executed</returns>
         public bool TryMovePiece(int startRow, int startCol, int endRow, int endCol)
         {
-            // Проверяем, чей сейчас ход в компьютерном режиме
+            // Check whose turn it is in computer mode
             if (!IsPlayerTurn())
                 return false;
 
-            // Проверяем, что это ход текущего игрока
+            // Check that it's the current player's piece
             Piece? piece = _board.GetPiece(startRow, startCol);
             if (piece == null || piece.Color != _currentPlayer)
                 return false;
 
-            // Валидируем и выполняем ход
+            // Validate and execute the move
             if (_board.IsValidMove(startRow, startCol, endRow, endCol, _currentPlayer))
             {
-                // Получаем перемещенную и взятую фигуры
+                // Get the moved and captured pieces
                 Piece? movedPiece = _board.GetPiece(startRow, startCol);
                 Piece? capturedPiece = _board.GetPiece(endRow, endCol);
 
-                // Выполняем ход
+                // Update 50-move rule counter
+                bool isPawnMove = movedPiece?.Type == "pawn";
+                bool isCapture = capturedPiece != null;
+
+                if (isPawnMove || isCapture)
+                {
+                    _halfMovesSinceCaptureOrPawn = 0;
+                }
+                else
+                {
+                    _halfMovesSinceCaptureOrPawn++;
+                }
+
+                // Execute the move
                 _board.MovePiece(startRow, startCol, endRow, endCol);
 
-                // Создаем информацию о ходе
+                // Create move notation
                 string moveNotation = GetMoveNotation(movedPiece, startRow, startCol, endRow, endCol, capturedPiece);
 
-                // Обрабатываем продвижение пешки
+                // Handle pawn promotion
                 bool wasPromoted = false;
                 if (IsPawnPromotion(endRow, endCol))
                 {
                     wasPromoted = HandlePawnPromotion(endRow, endCol);
                     if (!wasPromoted)
                     {
-                        // Если продвижение было отменено, отменяем ход
+                        // Undo the move if promotion was cancelled
                         _board.MovePiece(endRow, endCol, startRow, startCol);
                         if (capturedPiece != null)
                         {
@@ -285,42 +304,49 @@ namespace ChessTrainer
                         return false;
                     }
                 }
-                // Уведомляем о выполненном ходе
+
+                // Notify about the move
                 OnMoveMade(new MoveEventArgs(startRow, startCol, endRow, endCol, moveNotation));
 
-                // Проверяем, не закончилась ли игра взятием короля
+                // Check if a king was captured
                 if (capturedPiece?.Type == "king")
                 {
                     OnGameEnded(new GameEndEventArgs(GameEndType.KingCaptured, _currentPlayer));
                     return true;
                 }
 
-                // Переключаем игроков
+                // Check for 50-move rule
+                if (_halfMovesSinceCaptureOrPawn >= 100) // 50 full moves = 100 half-moves
+                {
+                    OnGameEnded(new GameEndEventArgs(GameEndType.Draw, ""));
+                    return true;
+                }
+
+                // Switch players
                 SwitchPlayer();
 
-                // Проверяем шах и мат для нового текущего игрока
+                // Check for checkmate or stalemate
                 GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
                 if (endType != GameEndType.None)
                 {
-                    // Победитель - игрок, который только что сделал ход
+                    // The winner is the player who just moved
                     string winner = _currentPlayer == "white" ? "black" : "white";
                     OnGameEnded(new GameEndEventArgs(endType, winner));
                     return true;
                 }
 
-                // Обновляем доску
+                // Update the board
                 OnBoardUpdated();
 
-                // Если режим игры с компьютером и сейчас ход компьютера, выполняем ход
+                // Make computer move if applicable
                 if (_isComputerMode && !IsPlayerTurn())
                 {
-                    // Делаем ход компьютера асинхронно, чтобы не замораживать UI
                     Task.Run(() =>
                     {
-                        // Небольшая задержка для лучшего пользовательского опыта
+                        // Small delay for better user experience
                         System.Threading.Thread.Sleep(500);
 
-                        // Выполняем ход компьютера
+                        // Make the computer move
                         Application.Current.Dispatcher.Invoke(() =>
                         {
                             MakeComputerMove();
@@ -333,6 +359,7 @@ namespace ChessTrainer
 
             return false;
         }
+
         /// <summary>
         /// Checks if a pawn needs promotion
         /// </summary>
@@ -415,6 +442,12 @@ namespace ChessTrainer
         {
             if (piece == null) return "";
 
+            // Handle castling
+            if (piece.Type == "king" && Math.Abs(endCol - startCol) == 2)
+            {
+                return endCol > startCol ? "O-O" : "O-O-O";
+            }
+
             string pieceSymbol = piece.Type switch
             {
                 "pawn" => "",
@@ -436,7 +469,64 @@ namespace ChessTrainer
                 return $"{(char)('a' + startCol)}{capture}{endSquare}";
             }
 
-            return $"{pieceSymbol}{startSquare}{capture}{endSquare}";
+            // Check for ambiguity (when two pieces of same type can move to same square)
+            bool needsFile = false;
+            bool needsRank = false;
+
+            if (piece.Type != "pawn")
+            {
+                for (int row = 0; row < 8; row++)
+                {
+                    for (int col = 0; col < 8; col++)
+                    {
+                        // Skip the piece we're moving
+                        if (row == startRow && col == startCol)
+                            continue;
+
+                        Piece? otherPiece = _board.GetPiece(row, col);
+
+                        // Check if there's another piece of same type and color that can move to target
+                        if (otherPiece?.Type == piece.Type &&
+                            otherPiece.Color == piece.Color &&
+                            _board.IsValidMove(row, col, endRow, endCol, piece.Color))
+                        {
+                            needsFile = true;
+
+                            // If pieces are on same file, we need rank too
+                            if (col == startCol)
+                                needsRank = true;
+                        }
+                    }
+                }
+            }
+
+            // Build the notation
+            string qualifier = "";
+            if (needsFile)
+                qualifier += (char)('a' + startCol);
+            if (needsRank)
+                qualifier += (8 - startRow);
+
+            string notation = $"{pieceSymbol}{qualifier}{capture}{endSquare}";
+
+            // Check for check or checkmate
+            string opponentColor = piece.Color == "white" ? "black" : "white";
+
+            // Create a temporary board to test check status after move
+            Board tempBoard = new Board(_board.GetPieces());
+            tempBoard.MovePiece(startRow, startCol, endRow, endCol);
+
+            if (tempBoard.IsKingInCheck(opponentColor))
+            {
+                // Check if it's checkmate
+                GameEndType endType = tempBoard.CheckForGameEnd(opponentColor);
+                if (endType == GameEndType.Checkmate)
+                    notation += "#";
+                else
+                    notation += "+";
+            }
+
+            return notation;
         }
 
         /// <summary>
@@ -444,83 +534,103 @@ namespace ChessTrainer
         /// </summary>
         public void MakeComputerMove()
         {
-            // Определяем цвет компьютера
+            // Determine computer's color
             string computerColor = _playerPlaysBlack ? "white" : "black";
 
-            // Проверяем, действительно ли сейчас ход компьютера
-            if ((_playerPlaysBlack && _currentPlayer == "white") ||
-                (!_playerPlaysBlack && _currentPlayer == "black"))
+            // Check if it's actually the computer's turn
+            if (_currentPlayer != computerColor)
+                return;
+
+            // Get all possible moves
+            var possibleMoves = _board.GetAllPossibleMovesForPlayer(computerColor);
+
+            if (possibleMoves.Count > 0)
             {
-                // Получаем все возможные ходы
-                var possibleMoves = _board.GetAllPossibleMovesForPlayer(computerColor);
+                // Choose the best move based on difficulty
+                Move? selectedMove = GetBestMove(possibleMoves, (int)CurrentDifficulty, computerColor == "white");
 
-                if (possibleMoves.Count > 0)
+                if (selectedMove != null)
                 {
-                    // Выбираем лучший ход на основе сложности
-                    Move? selectedMove = GetBestMove(possibleMoves, (int)CurrentDifficulty, computerColor == "white");
+                    // Execute the move
+                    Piece? movedPiece = _board.GetPiece(selectedMove.StartRow, selectedMove.StartCol);
+                    Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
 
-                    if (selectedMove != null)
+                    // Update 50-move rule counter
+                    bool isPawnMove = movedPiece?.Type == "pawn";
+                    bool isCapture = capturedPiece != null;
+
+                    if (isPawnMove || isCapture)
                     {
-                        // Выполняем ход
-                        Piece? movedPiece = _board.GetPiece(selectedMove.StartRow, selectedMove.StartCol);
-                        Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
-
-                        _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
-
-                        // Обрабатываем продвижение пешки (компьютер всегда превращает в ферзя)
-                        if (IsPawnPromotion(selectedMove.EndRow, selectedMove.EndCol))
-                        {
-                            Piece? pawn = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
-                            if (pawn != null)
-                            {
-                                _board.SetPiece(selectedMove.EndRow, selectedMove.EndCol, new Piece(pawn.Color, "queen"));
-                            }
-                        }
-
-                        // Создаем нотацию хода
-                        string moveNotation = GetMoveNotation(
-                            movedPiece,
-                            selectedMove.StartRow,
-                            selectedMove.StartCol,
-                            selectedMove.EndRow,
-                            selectedMove.EndCol,
-                            capturedPiece
-                        );
-
-                        // Уведомляем о выполненном ходе
-                        OnMoveMade(new MoveEventArgs(
-                            selectedMove.StartRow,
-                            selectedMove.StartCol,
-                            selectedMove.EndRow,
-                            selectedMove.EndCol,
-                            moveNotation
-                        ));
-
-                        // Проверяем взятие короля
-                        if (capturedPiece?.Type == "king")
-                        {
-                            OnGameEnded(new GameEndEventArgs(GameEndType.KingCaptured, computerColor));
-                            return;
-                        }
-
-                        // Переключаем игроков
-                        SwitchPlayer();
-
-                        // Проверяем шах и мат
-                        GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
-                        if (endType != GameEndType.None)
-                        {
-                            string winner = _currentPlayer == "white" ? "black" : "white";
-                            OnGameEnded(new GameEndEventArgs(endType, winner));
-                            return;
-                        }
-
-                        // Обновляем доску
-                        OnBoardUpdated();
+                        _halfMovesSinceCaptureOrPawn = 0;
                     }
+                    else
+                    {
+                        _halfMovesSinceCaptureOrPawn++;
+                    }
+
+                    _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
+
+                    // Handle pawn promotion (computer always promotes to queen)
+                    if (IsPawnPromotion(selectedMove.EndRow, selectedMove.EndCol))
+                    {
+                        Piece? pawn = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
+                        if (pawn != null)
+                        {
+                            _board.SetPiece(selectedMove.EndRow, selectedMove.EndCol, new Piece(pawn.Color, "queen"));
+                        }
+                    }
+
+                    // Create move notation
+                    string moveNotation = GetMoveNotation(
+                        movedPiece,
+                        selectedMove.StartRow,
+                        selectedMove.StartCol,
+                        selectedMove.EndRow,
+                        selectedMove.EndCol,
+                        capturedPiece
+                    );
+
+                    // Notify about the move
+                    OnMoveMade(new MoveEventArgs(
+                        selectedMove.StartRow,
+                        selectedMove.StartCol,
+                        selectedMove.EndRow,
+                        selectedMove.EndCol,
+                        moveNotation
+                    ));
+
+                    // Check if a king was captured
+                    if (capturedPiece?.Type == "king")
+                    {
+                        OnGameEnded(new GameEndEventArgs(GameEndType.KingCaptured, computerColor));
+                        return;
+                    }
+
+                    // Check for 50-move rule
+                    if (_halfMovesSinceCaptureOrPawn >= 100) // 50 full moves = 100 half-moves
+                    {
+                        OnGameEnded(new GameEndEventArgs(GameEndType.Draw, ""));
+                        return;
+                    }
+
+                    // IMPORTANT: Switch players immediately after the computer's move
+                    SwitchPlayer();
+
+                    // Check for checkmate or stalemate
+                    GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
+                    if (endType != GameEndType.None)
+                    {
+                        string winner = _currentPlayer == "white" ? "black" : "white";
+                        OnGameEnded(new GameEndEventArgs(endType, winner));
+                        return;
+                    }
+
+                    // Update the board
+                    OnBoardUpdated();
                 }
             }
         }
+
         #endregion
 
         #region AI Methods

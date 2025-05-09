@@ -30,15 +30,15 @@ namespace ChessTrainer
             PawnColor = pawnColor;
             SelectedPieceType = "queen"; // Default to queen
 
-            // Устанавливаем заголовок в зависимости от цвета
+            // Set title based on pawn color
             Title = $"{(pawnColor == "white" ? "Біла" : "Чорна")} пішка досягла останньої лінії";
 
-            // Инициализируем опции продвижения
+            // Initialize promotion options
             InitializePromotionOptions();
 
-            // Устанавливаем размеры окна
-            Width = 400;
-            Height = 250;
+            // Set window dimensions
+            Width = 600;
+            Height = 500;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
 
@@ -81,7 +81,7 @@ namespace ChessTrainer
                 }
             };
 
-            // Add OK and Cancel buttons
+            // Add OK and Cancel button
             StackPanel buttonPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -114,15 +114,15 @@ namespace ChessTrainer
 
             // Add the button panel
             ((Grid)Content).Children.Add(buttonPanel);
-            ((Grid)Content).Children[2].SetValue(Grid.RowProperty, 1);
 
             // Set the grid rows
             ((Grid)Content).RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            ((Grid)Content).RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             ((Grid)Content).RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
             ((Grid)Content).Children[0].SetValue(Grid.RowProperty, 0);
             optionsPanel.SetValue(Grid.RowProperty, 1);
             buttonPanel.SetValue(Grid.RowProperty, 2);
-
         }
 
         /// <summary>

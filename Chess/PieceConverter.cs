@@ -21,7 +21,7 @@ namespace ChessTrainer
         /// <returns>Converted value based on mode</returns>
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
-            // FIXED: Better input validation with defensive programming
+            // Better input validation with defensive programming
             if (values is null || values.Length < 2)
             {
                 return DependencyProperty.UnsetValue;
@@ -33,7 +33,7 @@ namespace ChessTrainer
                 return DependencyProperty.UnsetValue;
             }
 
-            // FIXED: Safer type casting with pattern matching
+            // Safer type casting with pattern matching
             if (values[0] is string pieceColor && values[1] is string pieceType && parameter is string mode)
             {
                 // Normalize inputs to lowercase for consistency
@@ -90,4 +90,6 @@ namespace ChessTrainer
             throw new NotImplementedException("ConvertBack is not supported for PieceConverter");
         }
     }
+
+
 }

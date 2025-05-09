@@ -8,6 +8,10 @@ namespace ChessTrainer
     /// <summary>
     /// Converts boolean values to Visibility enum values
     /// </summary>
+
+    /// <summary>
+    /// Converts boolean values to Visibility enum values
+    /// </summary>
     public class BooleanToVisibilityConverter : IValueConverter
     {
         /// <summary>
@@ -20,13 +24,13 @@ namespace ChessTrainer
         /// <returns>Visibility.Visible for true, Visibility.Collapsed for false</returns>
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            // FIXED: Use pattern matching for more reliable type checking
+            // Use pattern matching for more reliable type checking
             if (value is bool boolValue)
             {
                 return boolValue ? Visibility.Visible : Visibility.Collapsed;
             }
 
-            // FIXED: Added fallback for null or non-boolean values
+            // Added fallback for null or non-boolean values
             return Visibility.Collapsed;
         }
 
@@ -35,7 +39,7 @@ namespace ChessTrainer
         /// </summary>
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            // FIXED: Added more detailed exception message
+            // Added more detailed exception message
             throw new NotImplementedException("Converting from Visibility to boolean is not supported");
         }
     }

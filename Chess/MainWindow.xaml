@@ -17,7 +17,7 @@
             <ColumnDefinition Width="Auto" MinWidth="600"/>
             <ColumnDefinition Width="300"/>
             <ColumnDefinition Width="Auto"/>
-            <!-- Увеличенная ширина колонки для боковой панели -->
+            <!-- Increased width for side panel -->
             <ColumnDefinition Width="150"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
@@ -106,7 +106,7 @@
         <!-- Control panel -->
         <StackPanel Grid.Column="1" Grid.Row="1" Margin="10">
             <Button Content="Нова Гра" Click="StartNewGame_Click" Margin="5"/>
-            <Button Content="Очистити Дошку" Click="ClearBoard_Click" Margin="5"/>
+            <Button x:Name="ClearBoardButton" Content="Очистити Дошку" Click="ClearBoard_Click" Margin="5" Visibility="Collapsed"/>
             <Button Content="Режим 2 Гравці" Click="SetTwoPlayersMode_Click" Margin="5"/>
             <Button Content="Режим проти Комп'ютера" Click="SetComputerMode_Click" Margin="5"/>
 
