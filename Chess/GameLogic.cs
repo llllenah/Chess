@@ -630,7 +630,6 @@ namespace ChessTrainer
                 }
             }
         }
-
         #endregion
 
         #region AI Methods

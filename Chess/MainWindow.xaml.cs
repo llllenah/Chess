@@ -52,6 +52,7 @@ namespace ChessTrainer
         private bool _isTwoPlayersMode = true;
         private bool _isComputerMode = false;
         private ChessColor _playerColor = ChessColor.White;
+        private bool _playerPlaysBlack = false;
 
         // Game logic
         private GameLogic _gameLogic;
@@ -182,6 +183,7 @@ namespace ChessTrainer
                 DifficultyComboBox.Visibility = Visibility.Collapsed; // Initially hidden
             }
         }
+
         /// <summary>
         /// Creates the side panels for piece selection during setup
         /// </summary>
@@ -230,6 +232,7 @@ namespace ChessTrainer
             // Store reference to side grid
             SideGrid = sideGrid;
         }
+
         /// <summary>
         /// Side grid for piece selection
         /// </summary>
@@ -269,6 +272,7 @@ namespace ChessTrainer
         {
             Dispatcher.Invoke(() =>
             {
+                // Immediately stop game and timers
                 IsGameActive = false;
                 StopTimers();
 
@@ -313,9 +317,33 @@ namespace ChessTrainer
 
                 if (result == MessageBoxResult.Yes)
                 {
-                    // Clear history BEFORE starting new game
-                    ClearMoveHistory();
-                    StartNewGame_Click(this, new RoutedEventArgs());
+                    // Save the message box result to use after confirmation
+                    bool startNewGame = true;
+
+                    // Use Application.Current.Dispatcher to avoid nested message boxes issue
+                    Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        if (startNewGame)
+                        {
+                            // Clear history BEFORE starting new game
+                            ClearMoveHistory();
+
+                            // Complete reset game state
+                            _playerColor = PlayAsWhiteRadioButton?.IsChecked == true ? ChessColor.White : ChessColor.Black;
+                            _gameLogic.PlayerPlaysBlack = _playerColor == ChessColor.Black;
+                            _currentPlayer = "white";
+                            _gameLogic.InitializeGame();
+                            InitializeBoardUI();
+                            UpdateBoardUI();
+
+                            // Reset timers
+                            ResetTimers();
+
+                            // Update game state
+                            _isGameActive = true;
+                            ForceRefreshBoardState();
+                        }
+                    });
                 }
             });
         }
@@ -379,9 +407,10 @@ namespace ChessTrainer
                 _playerColor = PlayAsWhiteRadioButton?.IsChecked == true ? ChessColor.White : ChessColor.Black;
                 _gameLogic.PlayerPlaysBlack = _playerColor == ChessColor.Black;
                 _currentPlayer = "white";
+
                 // Initialize the game
                 _gameLogic.InitializeGame();
-                InitializeBoardUI(); 
+                InitializeBoardUI();
                 UpdateBoardUI();
 
                 // Exit setup mode if active
@@ -396,7 +425,7 @@ namespace ChessTrainer
 
                 // Update game state
                 _isGameActive = true;
-                UpdateStatusText();
+                ForceRefreshBoardState();
             }
         }
 
@@ -484,29 +513,37 @@ namespace ChessTrainer
                 DifficultyComboBox.Visibility = Visibility.Visible;
 
             IsComputerMode = true;
-            UpdateStatusText();
 
             // Set player color
             _playerColor = PlayAsWhiteRadioButton?.IsChecked == true ? ChessColor.White : ChessColor.Black;
             _gameLogic.PlayerPlaysBlack = _playerColor == ChessColor.Black;
 
-            StartTimers();
+            // Reset timers
+            ResetTimers();
+
             _isPositionLoaded = false;
             _firstMoveAfterLoad = false;
 
-            // If computer plays white, make first move
-            if (_playerColor == ChessColor.Black && _currentPlayer == "white")
+            // Check current player and if it's computer's turn
+            bool isComputerTurn = (_playerPlaysBlack && _currentPlayer == "white") ||
+                                (!_playerPlaysBlack && _currentPlayer == "black");
+
+            // If it's computer's turn, make computer move
+            if (isComputerTurn)
             {
                 _gameLogic.MakeComputerMove();
-
-                // Force refresh after computer's move
-                ForceRefreshBoardState();
             }
 
-            _currentPlayer = _gameLogic.CurrentPlayer;
-            UpdateBoardUI();
+            // Force refresh after any computer move
+            ForceRefreshBoardState();
+
+            // Start timers based on current player
+            StartTimers();
         }
 
+        /// <summary>
+        /// Force refreshes the board state and all related UI elements
+        /// </summary>
         private void ForceRefreshBoardState()
         {
             // Ensure current player is synced with game logic
@@ -521,7 +558,29 @@ namespace ChessTrainer
 
             // Update UI
             UpdateBoardUI();
+            UpdateStatusAndTimers(); // Use improved method that updates both status and timers
+        }
+
+        /// <summary>
+        /// Updates both status text and timer states
+        /// </summary>
+        private void UpdateStatusAndTimers()
+        {
+            // Update status text first
             UpdateStatusText();
+
+            // Then update active timer based on current player
+            StopTimers(); // Stop both timers first
+
+            if (!_isGameActive) return;
+
+            // Start the appropriate timer based on current player
+            if (_currentPlayer == "white")
+                _whiteTimer?.Start();
+            else
+                _blackTimer?.Start();
+
+            _isTimerRunning = true;
         }
 
         /// <summary>
@@ -734,16 +793,21 @@ namespace ChessTrainer
                     InitializeBoardUI();
                 }
 
+                // Check if it's computer's turn
+                bool isComputerTurn = (_playerPlaysBlack && _currentPlayer == "white") ||
+                                   (!_playerPlaysBlack && _currentPlayer == "black");
+
                 // If computer plays first, make its move
-                if (_isComputerMode && _playerColor == ChessColor.Black && _currentPlayer == "white")
+                if (isComputerTurn)
                 {
                     _gameLogic.MakeComputerMove();
                 }
 
-                _currentPlayer = _gameLogic.CurrentPlayer;
-                UpdateStatusText();
+                // Force refresh after potentially making a move
+                ForceRefreshBoardState();
             }
         }
+
         /// <summary>
         /// Handles the board flip checkbox changes
         /// </summary>
@@ -763,18 +827,36 @@ namespace ChessTrainer
 
             if (_isSetupPositionMode)
             {
-                // [Setup mode logic remains unchanged...]
+                // Setup mode - place or remove pieces
+                if (_selectedPieceForPlacement != null)
+                {
+                    PlacePieceInSetupMode(clickedCell);
+                }
+                else
+                {
+                    // No piece selected - remove piece at this position
+                    foreach (var cell in Board)
+                    {
+                        if (cell.Row == clickedCell.Row && cell.Col == clickedCell.Col)
+                        {
+                            cell.Piece = null;
+                            break;
+                        }
+                    }
+                }
+
+                e.Handled = true;
             }
             else if (_isGameActive)
             {
-                // Ensure we have synced state before checking turn
+                // Make sure current player is in sync with game logic
                 _currentPlayer = _gameLogic.CurrentPlayer;
 
                 // Check if it's the player's turn
                 if (_isComputerMode && !_gameLogic.IsPlayerTurn())
                 {
                     if (StatusTextBlock != null)
-                        StatusTextBlock.Text = "It's the computer's turn. Please wait.";
+                        StatusTextBlock.Text = "Зараз хід комп'ютера. Будь ласка, зачекайте.";
                     return;
                 }
 
@@ -783,7 +865,7 @@ namespace ChessTrainer
                 if (piece == null || piece.Color != _currentPlayer)
                 {
                     if (StatusTextBlock != null)
-                        StatusTextBlock.Text = $"It's {(_currentPlayer == "white" ? "white" : "black")}'s turn. Select the correct piece.";
+                        StatusTextBlock.Text = $"Зараз хід {(_currentPlayer == "white" ? "білих" : "чорних")}. Виберіть відповідну фігуру.";
                     return;
                 }
 
@@ -953,6 +1035,7 @@ namespace ChessTrainer
                 }
                 else if (_isComputerMode)
                 {
+                    // Add indication of whose turn it is
                     bool isPlayerTurn = _gameLogic.IsPlayerTurn();
                     string turnInfo = isPlayerTurn ? "Ваш хід" : "Хід комп'ютера";
                     StatusTextBlock.Text = $"Режим проти комп'ютера. Хід {playerText}. {turnInfo}.";
@@ -1148,12 +1231,18 @@ namespace ChessTrainer
         /// <param name="move">The move to add to history</param>
         private void UpdateMoveHistory(string move)
         {
+            if (string.IsNullOrEmpty(move))
+                return;
+
             MoveHistory.Add(move);
 
             if (MoveHistoryListBox != null)
             {
-                MoveHistoryListBox.Items.Add(move);
-                MoveHistoryListBox.ScrollIntoView(move);
+                // Use Dispatcher to ensure UI thread update
+                Dispatcher.Invoke(() => {
+                    MoveHistoryListBox.Items.Add(move);
+                    MoveHistoryListBox.ScrollIntoView(move);
+                });
             }
         }
 
@@ -1276,6 +1365,7 @@ namespace ChessTrainer
             _selectedPieceForPlacement = null;
             _selectedPieceBorder = null;
         }
+
         /// <summary>
         /// Creates a button for piece setup
         /// </summary>
@@ -1367,7 +1457,7 @@ namespace ChessTrainer
                                "Невірна позиція",
                                MessageBoxButton.OK,
                                MessageBoxImage.Warning);
-                
+
                 UpdateBoardUI();
                 return;
             }
@@ -1396,7 +1486,7 @@ namespace ChessTrainer
         private void TryMove(BoardCell startCell, BoardCell endCell)
         {
             // Check if it's the player's turn
-            if (!_gameLogic.IsPlayerTurn() && !_gameLogic.IsPlayerTurn())
+            if (!_gameLogic.IsPlayerTurn())
             {
                 if (StatusTextBlock != null)
                     StatusTextBlock.Text = "Зараз не ваш хід!";
@@ -1407,20 +1497,18 @@ namespace ChessTrainer
             if (piece == null || piece.Color != _currentPlayer)
             {
                 if (StatusTextBlock != null)
-                    StatusTextBlock.Text = $"It's {(_currentPlayer == "white" ? "white" : "black")}'s turn!";
+                    StatusTextBlock.Text = $"Зараз хід {(_currentPlayer == "white" ? "білих" : "чорних")}!";
                 return;
             }
 
-            if (_gameLogic.TryMovePiece(startCell.Row, startCell.Col, endCell.Row, endCell.Col))
+            if (_gameLogic.TryMovePiece(startCell.Row, startCol: startCell.Col, endRow: endCell.Row, endCol: endCell.Col))
             {
                 // Move was successful - update UI state
                 ClearHighlights();
-                UpdateStatusText();
-                UpdateBoardUI();
-            }
 
-            _currentPlayer = _gameLogic.CurrentPlayer;
-            UpdateBoardUI();
+                // Instead of individual updates, use force refresh to ensure everything is updated
+                ForceRefreshBoardState();
+            }
         }
 
         /// <summary>
@@ -1603,7 +1691,7 @@ namespace ChessTrainer
         }
 
         /// <summary>
-        /// Starts the chess clocks
+        /// Starts the chess clocks based on current player
         /// </summary>
         private void StartTimers()
         {
