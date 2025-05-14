@@ -804,12 +804,16 @@ namespace ChessTrainer
         }
 
         /// <summary>
-        /// Checks the board for checkmate or stalemate
+        /// Checks the board for checkmate or stalemate.
         /// </summary>
-        /// <param name="playerColor">Color of the player to check</param>
-        /// <returns>GameEndType enum indicating the result</returns>
+        /// <param name="playerColor">Color of the player to check.</param>
+        /// <returns>GameEndType enum indicating the result.</returns>
         public GameEndType CheckForGameEnd(string playerColor)
         {
+            // First check for insufficient material - this takes precedence over other conditions
+            if (HasInsufficientMaterial())
+                return GameEndType.InsufficientMaterial;
+
             // Check if player has any legal moves
             List<Move> possibleMoves = GetAllPossibleMovesForPlayer(playerColor);
 
@@ -822,6 +826,61 @@ namespace ChessTrainer
                 return GameEndType.Checkmate;
             else
                 return GameEndType.Stalemate;
+        }
+
+        /// <summary>
+        /// Checks if the current position has insufficient material for checkmate.
+        /// </summary>
+        /// <returns>True if there is insufficient material, false otherwise.</returns>
+        private bool HasInsufficientMaterial()
+        {
+            int whiteCount = 0;
+            int blackCount = 0;
+            bool whiteHasKnight = false;
+            bool whiteHasBishop = false;
+            bool blackHasKnight = false;
+            bool blackHasBishop = false;
+
+            // Count pieces and track specific piece types
+            for (int row = 0; row < 8; row++)
+            {
+                for (int col = 0; col < 8; col++)
+                {
+                    Piece? piece = GetPiece(row, col);
+                    if (piece != null)
+                    {
+                        if (piece.Color == "white")
+                        {
+                            whiteCount++;
+                            if (piece.Type == "knight") whiteHasKnight = true;
+                            if (piece.Type == "bishop") whiteHasBishop = true;
+                        }
+                        else // black
+                        {
+                            blackCount++;
+                            if (piece.Type == "knight") blackHasKnight = true;
+                            if (piece.Type == "bishop") blackHasBishop = true;
+                        }
+                    }
+                }
+            }
+
+            // King vs King
+            if (whiteCount == 1 && blackCount == 1)
+                return true;
+
+            // King + Knight vs King or King + Bishop vs King
+            if ((whiteCount == 2 && whiteHasKnight && blackCount == 1) ||
+                (whiteCount == 2 && whiteHasBishop && blackCount == 1) ||
+                (blackCount == 2 && blackHasKnight && whiteCount == 1) ||
+                (blackCount == 2 && blackHasBishop && whiteCount == 1))
+                return true;
+
+            // King + Knight vs King + Knight (special case where checkmate is impossible)
+            if (whiteCount == 2 && whiteHasKnight && blackCount == 2 && blackHasKnight)
+                return true;
+
+            return false;
         }
 
         /// <summary>

@@ -6,7 +6,8 @@
         xmlns:local="clr-namespace:ChessTrainer"
         mc:Ignorable="d"
         Title="Шаховий тренажер" Height="800" Width="1200"
-        MinHeight="600" MinWidth="800">
+        MinHeight="600" MinWidth="1460"
+        ResizeMode="CanMinimize">
     <Window.Resources>
         <local:PieceConverter x:Key="PieceConverter" />
         <local:BooleanToVisibilityConverter x:Key="BooleanToVisibility"/>
@@ -135,6 +136,16 @@
             <Setter Property="Foreground" Value="#303F9F"/>
             <Setter Property="Margin" Value="0,15,0,5"/>
         </Style>
+
+        <!-- Стиль для координат шахівниці -->
+        <Style x:Key="BoardLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="2"/>
+        </Style>
     </Window.Resources>
 
     <Grid x:Name="MainGrid">
@@ -142,7 +153,7 @@
             <ColumnDefinition Width="Auto" MinWidth="600"/>
             <ColumnDefinition Width="300"/>
             <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="150"/>
+            <ColumnDefinition Width="350"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -158,83 +169,145 @@
                        FontWeight="Bold" Foreground="White"/>
         </Border>
 
-        <!-- Шахова дошка -->
+        <!-- Шахова дошка з координатами -->
         <Border Grid.Row="1" Grid.Column="0" Margin="10" 
                 BorderBrush="#795548" BorderThickness="5" 
                 CornerRadius="3" Background="#EEEEEE">
-            <ItemsControl x:Name="ChessBoardItemsControl" ItemsSource="{Binding Board}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <UniformGrid Rows="8" Columns="8"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Background="{Binding Background}" AllowDrop="True"
-                                DragEnter="BoardCell_DragEnter" Drop="BoardCell_Drop"
-                                MouseLeftButtonDown="BoardCell_MouseLeftButtonDown">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
-                                            <Setter Property="BorderBrush">
-                                                <Setter.Value>
-                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                        <GradientStop Color="#4CAF50" Offset="0.0" />
-                                                        <GradientStop Color="#8BC34A" Offset="1.0" />
-                                                    </LinearGradientBrush>
-                                                </Setter.Value>
-                                            </Setter>
-                                            <Setter Property="BorderThickness" Value="3" />
-                                            <Setter Property="Effect">
-                                                <Setter.Value>
-                                                    <DropShadowEffect Color="#4CAF50" ShadowDepth="0" BlurRadius="10" Opacity="0.7" />
-                                                </Setter.Value>
-                                            </Setter>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <TextBlock
-                                FontSize="40"
-                                FontFamily="Segoe UI Symbol"
-                                FontWeight="Bold"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                TextWrapping="NoWrap">
+            <Grid x:Name="ChessBoardGrid">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                                <!-- Piece symbol -->
-                                <TextBlock.Text>
-                                    <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="text" FallbackValue="">
-                                        <Binding Path="Piece.Color" FallbackValue=""/>
-                                        <Binding Path="Piece.Type" FallbackValue=""/>
-                                    </MultiBinding>
-                                </TextBlock.Text>
+                <!-- Горизонтальні координати (букви) зверху -->
+                <UniformGrid Grid.Row="0" Grid.Column="1" Rows="1" Columns="8" Name="TopFileLabels">
+                    <TextBlock Text="a" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="b" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="c" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="d" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="e" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="f" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="g" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="h" Style="{StaticResource BoardLabelStyle}"/>
+                </UniformGrid>
 
-                                <!-- Piece color -->
-                                <TextBlock.Foreground>
-                                    <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="fill" FallbackValue="Black">
-                                        <Binding Path="Piece.Color" FallbackValue=""/>
-                                        <Binding Path="Piece.Type" FallbackValue=""/>
-                                    </MultiBinding>
-                                </TextBlock.Foreground>
+                <!-- Вертикальні координати (цифри) зліва -->
+                <UniformGrid Grid.Row="1" Grid.Column="0" Rows="8" Columns="1" Name="LeftRankLabels">
+                    <TextBlock Text="8" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="7" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="6" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="5" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="4" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="3" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="2" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="1" Style="{StaticResource BoardLabelStyle}"/>
+                </UniformGrid>
 
-                                <!-- Piece outline -->
-                                <TextBlock.TextEffects>
-                                    <TextEffect>
-                                        <TextEffect.Foreground>
-                                            <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="stroke" FallbackValue="Transparent">
-                                                <Binding Path="Piece.Color" FallbackValue=""/>
-                                                <Binding Path="Piece.Type" FallbackValue=""/>
-                                            </MultiBinding>
-                                        </TextEffect.Foreground>
-                                    </TextEffect>
-                                </TextBlock.TextEffects>
-                            </TextBlock>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                <!-- Горизонтальні координати (букви) знизу -->
+                <UniformGrid Grid.Row="2" Grid.Column="1" Rows="1" Columns="8" Name="BottomFileLabels">
+                    <TextBlock Text="a" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="b" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="c" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="d" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="e" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="f" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="g" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="h" Style="{StaticResource BoardLabelStyle}"/>
+                </UniformGrid>
+
+                <!-- Вертикальні координати (цифри) справа -->
+                <UniformGrid Grid.Row="1" Grid.Column="2" Rows="8" Columns="1" Name="RightRankLabels">
+                    <TextBlock Text="8" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="7" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="6" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="5" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="4" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="3" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="2" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="1" Style="{StaticResource BoardLabelStyle}"/>
+                </UniformGrid>
+
+                <!-- Сама шахівниця -->
+                <ItemsControl x:Name="ChessBoardItemsControl" Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Board}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="8" Columns="8"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{Binding Background}" AllowDrop="True"
+                                    DragEnter="BoardCell_DragEnter" Drop="BoardCell_Drop"
+                                    MouseLeftButtonDown="BoardCell_MouseLeftButtonDown">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                                <Setter Property="BorderBrush">
+                                                    <Setter.Value>
+                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                            <GradientStop Color="#4CAF50" Offset="0.0" />
+                                                            <GradientStop Color="#8BC34A" Offset="1.0" />
+                                                        </LinearGradientBrush>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Setter Property="BorderThickness" Value="3" />
+                                                <Setter Property="Effect">
+                                                    <Setter.Value>
+                                                        <DropShadowEffect Color="#4CAF50" ShadowDepth="0" BlurRadius="10" Opacity="0.7" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock
+                                    FontSize="40"
+                                    FontFamily="Segoe UI Symbol"
+                                    FontWeight="Bold"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    TextWrapping="NoWrap">
+
+                                    <!-- Piece symbol -->
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="text" FallbackValue="">
+                                            <Binding Path="Piece.Color" FallbackValue=""/>
+                                            <Binding Path="Piece.Type" FallbackValue=""/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+
+                                    <!-- Piece color -->
+                                    <TextBlock.Foreground>
+                                        <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="fill" FallbackValue="Black">
+                                            <Binding Path="Piece.Color" FallbackValue=""/>
+                                            <Binding Path="Piece.Type" FallbackValue=""/>
+                                        </MultiBinding>
+                                    </TextBlock.Foreground>
+
+                                    <!-- Piece outline -->
+                                    <TextBlock.TextEffects>
+                                        <TextEffect>
+                                            <TextEffect.Foreground>
+                                                <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="stroke" FallbackValue="Transparent">
+                                                    <Binding Path="Piece.Color" FallbackValue=""/>
+                                                    <Binding Path="Piece.Type" FallbackValue=""/>
+                                                </MultiBinding>
+                                            </TextEffect.Foreground>
+                                        </TextEffect>
+                                    </TextBlock.TextEffects>
+                                </TextBlock>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
         </Border>
 
         <!-- Результат гри -->
@@ -247,10 +320,10 @@
         </Border>
 
         <!-- Панель керування -->
-        <Border Grid.Column="1" Grid.Row="1" Margin="10" 
+        <Border Grid.Column="1" Margin="10,10,10,10" 
                 Background="#F5F5F5" CornerRadius="5" 
-                BorderBrush="#BDBDBD" BorderThickness="1">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                BorderBrush="#BDBDBD" BorderThickness="1" Grid.RowSpan="3">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,9,9">
                 <StackPanel Margin="10">
                     <TextBlock Text="Управління грою" Style="{StaticResource SectionTitle}" FontSize="16"/>
                     <Button Content="Нова гра" Style="{StaticResource GameButton}" Click="StartNewGame_Click"/>
@@ -327,9 +400,9 @@
         </Border>
 
         <!-- Шахові годинники -->
-        <Border Grid.Column="2" Grid.Row="1" Margin="10" 
+        <Border Grid.Column="2" Margin="10,10,10,379" 
                 Background="#F5F5F5" CornerRadius="5"
-                BorderBrush="#BDBDBD" BorderThickness="1">
+                BorderBrush="#BDBDBD" BorderThickness="1" Grid.RowSpan="2">
             <StackPanel Margin="10">
                 <TextBlock Text="Шахові годинники" Style="{StaticResource SectionTitle}" 
                            HorizontalAlignment="Center" Margin="0,0,0,10"/>
