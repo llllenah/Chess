@@ -1186,6 +1186,9 @@ namespace ChessTrainer
                     ChessBoardItemsControl.Items.Refresh();
                 }
 
+                // Update board coordinate labels when the board is flipped or unflipped
+                UpdateBoardLabels();
+
                 // Update timer visuals
                 UpdateTimerVisuals();
             });
@@ -1198,45 +1201,137 @@ namespace ChessTrainer
         {
             if (ChessBoardGrid == null) return;
 
-            // Find labels
-            StackPanel? topLabels = FindVisualChild<StackPanel>(ChessBoardGrid, 0, 1);
-            StackPanel? bottomLabels = FindVisualChild<StackPanel>(ChessBoardGrid, 2, 1);
-            StackPanel? leftLabels = FindVisualChild<StackPanel>(ChessBoardGrid, 1, 0);
-            StackPanel? rightLabels = FindVisualChild<StackPanel>(ChessBoardGrid, 1, 2);
-
-            if (topLabels == null || bottomLabels == null || leftLabels == null || rightLabels == null)
-                return;
-
-            // File labels (a-h)
-            char[] files = IsBoardFlipped ?
-                new[] { 'h', 'g', 'f', 'e', 'd', 'c', 'b', 'a' } :
-                new[] { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h' };
-
-            // Rank labels (1-8)
-            char[] ranks = IsBoardFlipped ?
-                new[] { '1', '2', '3', '4', '5', '6', '7', '8' } :
-                new[] { '8', '7', '6', '5', '4', '3', '2', '1' };
-
-            // Update file labels
-            for (int i = 0; i < 8; i++)
+            try
             {
-                if (topLabels.Children[i] is TextBlock topBlock)
-                    topBlock.Text = files[i].ToString();
+                // Find the UniformGrid elements that contain the labels
+                var topLabels = FindVisualChild<UniformGrid>(ChessBoardGrid, "TopFileLabels");
+                var bottomLabels = FindVisualChild<UniformGrid>(ChessBoardGrid, "BottomFileLabels");
+                var leftLabels = FindVisualChild<UniformGrid>(ChessBoardGrid, "LeftRankLabels");
+                var rightLabels = FindVisualChild<UniformGrid>(ChessBoardGrid, "RightRankLabels");
 
-                if (bottomLabels.Children[i] is TextBlock bottomBlock)
-                    bottomBlock.Text = files[i].ToString();
+                if (topLabels == null || bottomLabels == null || leftLabels == null || rightLabels == null)
+                {
+                    // Try by grid position if not found by name
+                    topLabels = FindVisualChild<UniformGrid>(ChessBoardGrid, 0, 1);
+                    bottomLabels = FindVisualChild<UniformGrid>(ChessBoardGrid, 2, 1);
+                    leftLabels = FindVisualChild<UniformGrid>(ChessBoardGrid, 1, 0);
+                    rightLabels = FindVisualChild<UniformGrid>(ChessBoardGrid, 1, 2);
+                }
+
+                if (topLabels == null || bottomLabels == null || leftLabels == null || rightLabels == null)
+                {
+                    // Still couldn't find them, try direct children search
+                    for (int i = 0; i < VisualTreeHelper.GetChildrenCount(ChessBoardGrid); i++)
+                    {
+                        var child = VisualTreeHelper.GetChild(ChessBoardGrid, i);
+                        if (child is UniformGrid grid)
+                        {
+                            int row = Grid.GetRow(grid);
+                            int col = Grid.GetColumn(grid);
+
+                            if (row == 0 && col == 1) topLabels = grid;
+                            else if (row == 2 && col == 1) bottomLabels = grid;
+                            else if (row == 1 && col == 0) leftLabels = grid;
+                            else if (row == 1 && col == 2) rightLabels = grid;
+                        }
+                    }
+                }
+
+                // If we still can't find the labels, log an error and return
+                if (topLabels == null || bottomLabels == null || leftLabels == null || rightLabels == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("Could not find board coordinate labels");
+                    return;
+                }
+
+                // File labels (a-h)
+                char[] files = IsBoardFlipped ?
+                    new[] { 'h', 'g', 'f', 'e', 'd', 'c', 'b', 'a' } :
+                    new[] { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h' };
+
+                // Rank labels (1-8)
+                char[] ranks = IsBoardFlipped ?
+                    new[] { '1', '2', '3', '4', '5', '6', '7', '8' } :
+                    new[] { '8', '7', '6', '5', '4', '3', '2', '1' };
+
+                // Update file labels (top and bottom)
+                for (int i = 0; i < 8 && i < topLabels.Children.Count && i < bottomLabels.Children.Count; i++)
+                {
+                    if (topLabels.Children[i] is TextBlock topBlock)
+                        topBlock.Text = files[i].ToString();
+
+                    if (bottomLabels.Children[i] is TextBlock bottomBlock)
+                        bottomBlock.Text = files[i].ToString();
+                }
+
+                // Update rank labels (left and right)
+                for (int i = 0; i < 8 && i < leftLabels.Children.Count && i < rightLabels.Children.Count; i++)
+                {
+                    if (leftLabels.Children[i] is TextBlock leftBlock)
+                        leftBlock.Text = ranks[i].ToString();
+
+                    if (rightLabels.Children[i] is TextBlock rightBlock)
+                        rightBlock.Text = ranks[i].ToString();
+                }
             }
-
-            // Update rank labels
-            for (int i = 0; i < 8; i++)
+            catch (Exception ex)
             {
-                if (leftLabels.Children[i] is TextBlock leftBlock)
-                    leftBlock.Text = ranks[i].ToString();
-
-                if (rightLabels.Children[i] is TextBlock rightBlock)
-                    rightBlock.Text = ranks[i].ToString();
+                // Log any exceptions for debugging
+                System.Diagnostics.Debug.WriteLine($"Error updating board labels: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Finds a visual child of a specific type in a grid by name.
+        /// </summary>
+        private T? FindVisualChildByName<T>(DependencyObject parent, string name) where T : FrameworkElement
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                DependencyObject child = VisualTreeHelper.GetChild(parent, i);
+
+                if (child is T element && element.Name == name)
+                {
+                    return element;
+                }
+
+                if (child is DependencyObject container)
+                {
+                    T? result = FindVisualChildByName<T>(container, name);
+                    if (result != null)
+                        return result;
+                }
+            }
+
+            return null;
+        }
+
+
+        /// <summary>
+        /// Finds a visual child of a specific type in a grid by name
+        /// </summary>
+        private T? FindVisualChild<T>(DependencyObject parent, string name) where T : FrameworkElement
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                DependencyObject child = VisualTreeHelper.GetChild(parent, i);
+
+                if (child is T element && element.Name == name)
+                {
+                    return element;
+                }
+
+                if (child is DependencyObject container)
+                {
+                    T? result = FindVisualChild<T>(container, name);
+                    if (result != null)
+                        return result;
+                }
+            }
+
+            return null;
+        }
+
 
         /// <summary>
         /// Finds a visual child of a specific type in a grid at specified row and column
@@ -1339,6 +1434,7 @@ namespace ChessTrainer
             }
 
             Board = flippedBoard;
+            UpdateBoardLabels();
         }
 
         /// <summary>
@@ -1838,23 +1934,6 @@ namespace ChessTrainer
         #region Game Management Methods
 
         /// <summary>
-        /// Initializes the game.
-        /// </summary>
-        private void InitializeGame()
-        {
-            _gameLogic.InitializeGame();
-            _currentPlayer = "white";
-
-            MoveHistory.Clear();
-            IsGameActive = true;
-            GameResultText = "";
-            _isAnalysisMode = false;
-            ResetTimers();
-            StartTimers();
-            UpdateStatusText();
-        }
-
-        /// <summary>
         /// Loads a game from file data.
         /// </summary>
         /// <param name="lines">Lines from the file.</param>
@@ -2332,274 +2411,6 @@ namespace ChessTrainer
         }
 
         /// <summary>
-        /// Shows a dialog to select game mode (computer vs. human)
-        /// </summary>
-        private void ShowGameModeSelectionDialog()
-        {
-            // Create a dialog window
-            Window modeSelectionWindow = new Window
-            {
-                Title = "Select Game Mode",
-                Width = 400,
-                Height = 650, // Increased height for more content
-                WindowStartupLocation = WindowStartupLocation.CenterScreen,
-                ResizeMode = ResizeMode.NoResize,
-                Background = Brushes.White
-            };
-
-            // Create a main layout panel
-            StackPanel mainPanel = new StackPanel
-            {
-                Margin = new Thickness(20)
-            };
-
-            // Add title
-            TextBlock titleLabel = new TextBlock
-            {
-                Text = "Select Game Mode",
-                FontSize = 18,
-                Margin = new Thickness(0, 0, 0, 20),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                FontWeight = FontWeights.Bold
-            };
-            mainPanel.Children.Add(titleLabel);
-
-            // Create a group box for mode selection
-            GroupBox modeGroupBox = new GroupBox
-            {
-                Header = "Mode",
-                Padding = new Thickness(10)
-            };
-
-            StackPanel modePanel = new StackPanel();
-
-            RadioButton humanModeRadio = new RadioButton
-            {
-                Content = "Two Players",
-                Margin = new Thickness(0, 0, 0, 10),
-                IsChecked = !_isComputerMode
-            };
-
-            RadioButton computerModeRadio = new RadioButton
-            {
-                Content = "Play Against Computer",
-                Margin = new Thickness(0, 0, 0, 10),
-                IsChecked = _isComputerMode
-            };
-
-            modePanel.Children.Add(humanModeRadio);
-            modePanel.Children.Add(computerModeRadio);
-            modeGroupBox.Content = modePanel;
-            mainPanel.Children.Add(modeGroupBox);
-
-            // Create color selection for computer mode
-            GroupBox colorGroupBox = new GroupBox
-            {
-                Header = "Play As",
-                Padding = new Thickness(10),
-                Margin = new Thickness(0, 10, 0, 0)
-            };
-
-            StackPanel colorPanel = new StackPanel();
-
-            RadioButton whiteRadio = new RadioButton
-            {
-                Content = "White",
-                Margin = new Thickness(0, 0, 0, 10),
-                IsChecked = !_playerPlaysBlack
-            };
-
-            RadioButton blackRadio = new RadioButton
-            {
-                Content = "Black",
-                Margin = new Thickness(0, 0, 0, 10),
-                IsChecked = _playerPlaysBlack
-            };
-
-            colorPanel.Children.Add(whiteRadio);
-            colorPanel.Children.Add(blackRadio);
-            colorGroupBox.Content = colorPanel;
-            mainPanel.Children.Add(colorGroupBox);
-
-            // Create difficulties dropdown for computer mode
-            GroupBox difficultyGroupBox = new GroupBox
-            {
-                Header = "Computer Difficulty",
-                Padding = new Thickness(10),
-                Margin = new Thickness(0, 10, 0, 0)
-            };
-
-            ComboBox difficultyCombo = new ComboBox
-            {
-                Margin = new Thickness(0, 5, 0, 5)
-            };
-
-            // Add random mode first
-            difficultyCombo.Items.Add(new ComboBoxItem { Content = "Random", Tag = "Random" });
-            difficultyCombo.Items.Add(new ComboBoxItem { Content = "Easy", Tag = "Easy" });
-            difficultyCombo.Items.Add(new ComboBoxItem { Content = "Medium", Tag = "Medium" });
-            difficultyCombo.Items.Add(new ComboBoxItem { Content = "Hard", Tag = "Hard" });
-            difficultyCombo.Items.Add(new ComboBoxItem { Content = "Expert", Tag = "Expert" });
-
-            // Select current difficulty level
-            for (int i = 0; i < difficultyCombo.Items.Count; i++)
-            {
-                if (difficultyCombo.Items[i] is ComboBoxItem item)
-                {
-                    string difficulty = item.Tag?.ToString() ?? "";
-                    if (difficulty == _gameLogic.CurrentDifficulty.ToString())
-                    {
-                        difficultyCombo.SelectedIndex = i;
-                        break;
-                    }
-                }
-            }
-
-            // Default to Medium if not found
-            if (difficultyCombo.SelectedIndex == -1)
-                difficultyCombo.SelectedIndex = 2; // Medium is now index 2
-
-            difficultyGroupBox.Content = difficultyCombo;
-            mainPanel.Children.Add(difficultyGroupBox);
-
-            // Add label for explanation of Random mode
-            TextBlock randomExplanation = new TextBlock
-            {
-                Text = "Random mode makes the computer choose moves randomly rather than strategically.",
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(10, 5, 10, 5),
-                Foreground = Brushes.Gray,
-                FontStyle = FontStyles.Italic
-            };
-            mainPanel.Children.Add(randomExplanation);
-
-            // Bind visibility of color and difficulty panels to computer mode selection
-            computerModeRadio.Checked += (s, e) =>
-            {
-                colorGroupBox.Visibility = Visibility.Visible;
-                difficultyGroupBox.Visibility = Visibility.Visible;
-                randomExplanation.Visibility = Visibility.Visible;
-            };
-
-            humanModeRadio.Checked += (s, e) =>
-            {
-                colorGroupBox.Visibility = Visibility.Collapsed;
-                difficultyGroupBox.Visibility = Visibility.Collapsed;
-                randomExplanation.Visibility = Visibility.Collapsed;
-            };
-
-            // Initialize visibility
-            colorGroupBox.Visibility = computerModeRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-            difficultyGroupBox.Visibility = computerModeRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-            randomExplanation.Visibility = computerModeRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-
-            // Add OK button
-            Button okButton = new Button
-            {
-                Content = "OK",
-                Margin = new Thickness(0, 20, 0, 0),
-                Padding = new Thickness(20, 5, 20, 5),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                MinWidth = 80
-            };
-
-            okButton.Click += (s, e) =>
-            {
-                bool wasComputerMode = _isComputerMode;
-
-                // Apply selected mode
-                _isComputerMode = computerModeRadio.IsChecked == true;
-                _gameLogic.SetComputerMode(_isComputerMode);
-                IsComputerMode = _isComputerMode;
-
-                if (_isComputerMode)
-                {
-                    // Apply color selection
-                    _playerPlaysBlack = blackRadio.IsChecked == true;
-                    _playerColor = _playerPlaysBlack ? ChessColor.Black : ChessColor.White;
-                    _gameLogic.PlayerPlaysBlack = _playerPlaysBlack;
-
-                    // Update UI to reflect player's color
-                    if (PlayAsWhiteRadioButton != null)
-                        PlayAsWhiteRadioButton.IsChecked = !_playerPlaysBlack;
-                    if (PlayAsBlackRadioButton != null)
-                        PlayAsBlackRadioButton.IsChecked = _playerPlaysBlack;
-
-                    // Apply difficulty
-                    if (difficultyCombo.SelectedItem is ComboBoxItem selectedItem)
-                    {
-                        string difficultyStr = selectedItem.Tag?.ToString() ?? "Medium";
-                        _gameLogic.CurrentDifficulty = difficultyStr switch
-                        {
-                            "Random" => GameLogic.ComputerDifficulty.Random,
-                            "Easy" => GameLogic.ComputerDifficulty.Easy,
-                            "Medium" => GameLogic.ComputerDifficulty.Medium,
-                            "Hard" => GameLogic.ComputerDifficulty.Hard,
-                            "Expert" => GameLogic.ComputerDifficulty.Expert,
-                            _ => GameLogic.ComputerDifficulty.Medium
-                        };
-
-                        // Update difficulty combobox in main UI
-                        if (DifficultyComboBox != null)
-                        {
-                            for (int i = 0; i < DifficultyComboBox.Items.Count; i++)
-                            {
-                                if (DifficultyComboBox.Items[i] is ComboBoxItem item &&
-                                    item.Tag?.ToString() == difficultyStr)
-                                {
-                                    DifficultyComboBox.SelectedIndex = i;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    // Show difficulty combobox
-                    if (DifficultyComboBox != null)
-                        DifficultyComboBox.Visibility = Visibility.Visible;
-                }
-                else
-                {
-                    // Hide difficulty combobox in two player mode
-                    if (DifficultyComboBox != null)
-                        DifficultyComboBox.Visibility = Visibility.Collapsed;
-                }
-
-                // Check if it's computer's turn after potential new game
-                bool isComputerTurn = _isComputerMode &&
-                                    ((_playerPlaysBlack && _currentPlayer == "white") ||
-                                     (!_playerPlaysBlack && _currentPlayer == "black"));
-
-                // If it's computer's turn, make computer move
-                if (isComputerTurn)
-                {
-                    Task.Run(() =>
-                    {
-                        // Small delay for better user experience
-                        System.Threading.Thread.Sleep(500);
-
-                        // Make the computer move
-                        Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            _gameLogic.MakeComputerMove();
-                        });
-                    });
-                }
-
-                // Update everything
-                UpdateStatusText();
-                ForceRefreshBoardState();
-
-                // Close the dialog
-                modeSelectionWindow.Close();
-            };
-
-            mainPanel.Children.Add(okButton);
-            modeSelectionWindow.Content = mainPanel;
-            modeSelectionWindow.ShowDialog();
-        }
-
-        /// <summary>
         /// Updates the move history.
         /// </summary>
         /// <param name="move">The move to add to history.</param>
@@ -3027,38 +2838,6 @@ namespace ChessTrainer
         }
 
         /// <summary>
-        /// Creates a border with proper thickness.
-        /// </summary>
-        private Thickness CreateBorderThickness(double uniformThickness)
-        {
-            return new Thickness(uniformThickness);
-        }
-
-        /// <summary>
-        /// Creates a border with different thickness for each side.
-        /// </summary>
-        private Thickness CreateBorderThickness(double left, double top, double right, double bottom)
-        {
-            return new Thickness(left, top, right, bottom);
-        }
-
-        /// <summary>
-        /// Creates a margin with proper thickness.
-        /// </summary>
-        private Thickness CreateMargin(double uniformMargin)
-        {
-            return new Thickness(uniformMargin);
-        }
-
-        /// <summary>
-        /// Creates a margin with different values for each side.
-        /// </summary>
-        private Thickness CreateMargin(double left, double top, double right, double bottom)
-        {
-            return new Thickness(left, top, right, bottom);
-        }
-
-        /// <summary>
         /// Shows a confirmation dialog.
         /// </summary>
         /// <param name="message">Message to show.</param>
@@ -3102,8 +2881,6 @@ namespace ChessTrainer
                 FindButtonByContentRecursive(child, content, ref result);
             }
         }
-
-
 
         #endregion
 
