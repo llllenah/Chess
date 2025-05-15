@@ -31,7 +31,7 @@ namespace ChessTrainer
             SelectedPieceType = "queen"; // Default to queen
 
             // Set title based on pawn color
-            Title = $"{(pawnColor == "white" ? "Біла" : "Чорна")} пішка досягла останньої лінії";
+            Title = $"{(pawnColor == "white" ? "White" : "Black")} pawn has reached the last rank";
 
             // Initialize promotion options
             InitializePromotionOptions();
@@ -71,7 +71,7 @@ namespace ChessTrainer
                 {
                     new TextBlock
                     {
-                        Text = "Виберіть фігуру для перетворення пішки:",
+                        Text = "Select a piece for promotion:",
                         Margin = new Thickness(10),
                         HorizontalAlignment = HorizontalAlignment.Center,
                         VerticalAlignment = VerticalAlignment.Top,
@@ -101,7 +101,7 @@ namespace ChessTrainer
 
             Button cancelButton = new Button
             {
-                Content = "Відміна",
+                Content = "Cancel",
                 Padding = new Thickness(20, 5, 20, 5),
                 Margin = new Thickness(5),
                 IsCancel = true,
@@ -136,7 +136,7 @@ namespace ChessTrainer
             // Create a piece
             Piece piece = new Piece(PawnColor, pieceType);
 
-            // Получаем название фигуры на украинском
+            // Get piece name in English
             string pieceName = GetPieceLocalizedName(pieceType);
 
             // Create a border to hold the piece and its name
@@ -199,17 +199,18 @@ namespace ChessTrainer
             // Add to the panel
             panel.Children.Add(container);
         }
+
         /// <summary>
-        /// Возвращает локализованное название фигуры
+        /// Returns localized piece name in English
         /// </summary>
         private string GetPieceLocalizedName(string pieceType)
         {
             return pieceType switch
             {
-                "queen" => "Ферзь",
-                "rook" => "Ладья",
-                "bishop" => "Слон",
-                "knight" => "Конь",
+                "queen" => "Queen",
+                "rook" => "Rook",
+                "bishop" => "Bishop",
+                "knight" => "Knight",
                 _ => pieceType
             };
         }

@@ -167,6 +167,9 @@ namespace ChessTrainer
             InitializeComponent();
             DataContext = this;
 
+            // Set initial window size
+            this.Width = 1100;
+
             // Initialize non-nullable fields
             _whitePanel = new StackPanel();
             _blackPanel = new StackPanel();
@@ -195,9 +198,28 @@ namespace ChessTrainer
             // Set initial difficulty
             if (DifficultyComboBox != null)
             {
+                // Temporarily remove the event handler to avoid triggering dialog
+                DifficultyComboBox.SelectionChanged -= DifficultyComboBox_SelectionChanged;
+
+                // Set the initial selection to Medium (index 2)
                 DifficultyComboBox.SelectedIndex = 2; // Medium difficulty
-                DifficultyComboBox.Visibility = Visibility.Collapsed; // Initially hidden
+
+                // Reattach the event handler
+                DifficultyComboBox.SelectionChanged += DifficultyComboBox_SelectionChanged;
+
+                // Initially hide difficulty combo box since we start in Two Players mode
+                DifficultyComboBox.Visibility = Visibility.Collapsed;
             }
+
+            // Make sure we're in Two Players mode at startup
+            _isComputerMode = false;
+            _gameLogic.SetComputerMode(false);
+            IsComputerMode = false;
+
+            // Set the game status
+            _isGameActive = true;
+            _isAnalysisMode = false;
+            _isSetupPositionMode = false;
         }
 
         /// <summary>
@@ -210,14 +232,95 @@ namespace ChessTrainer
                 // Get difficulty from tag or content
                 string difficultyText = selectedItem.Tag?.ToString() ?? selectedItem.Content?.ToString() ?? "Medium";
 
-                _gameLogic.CurrentDifficulty = difficultyText switch
+                // Single dialog for both changing difficulty and starting a new game
+                MessageBoxResult result = MessageBox.Show(
+                    $"Change difficulty to {difficultyText}? This will start a new game.",
+                    "Change Difficulty",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
                 {
-                    "Easy" => GameLogic.ComputerDifficulty.Easy,
-                    "Medium" => GameLogic.ComputerDifficulty.Medium,
-                    "Hard" => GameLogic.ComputerDifficulty.Hard,
-                    "Expert" => GameLogic.ComputerDifficulty.Expert,
-                    _ => GameLogic.ComputerDifficulty.Random
-                };
+                    // Apply the difficulty change
+                    _gameLogic.CurrentDifficulty = difficultyText switch
+                    {
+                        "Random" => GameLogic.ComputerDifficulty.Random,
+                        "Easy" => GameLogic.ComputerDifficulty.Easy,
+                        "Medium" => GameLogic.ComputerDifficulty.Medium,
+                        "Hard" => GameLogic.ComputerDifficulty.Hard,
+                        "Expert" => GameLogic.ComputerDifficulty.Expert,
+                        _ => GameLogic.ComputerDifficulty.Medium
+                    };
+
+                    // Start a new game immediately - no second confirmation
+                    ClearMoveHistory();
+
+                    _playerColor = PlayAsWhiteRadioButton?.IsChecked == true ? ChessColor.White : ChessColor.Black;
+                    _gameLogic.PlayerPlaysBlack = _playerColor == ChessColor.Black;
+                    _currentPlayer = "white";
+                    _gameLogic.InitializeGame();
+                    InitializeBoardUI();
+                    UpdateBoardUI();
+
+                    // Reset timers
+                    ResetTimers();
+                    _isTimersPaused = false;
+
+                    if (TimerControlButton != null)
+                        TimerControlButton.Content = "Pause Timers";
+
+                    // Update game state
+                    _isGameActive = true;
+
+                    // Check if it's computer's turn
+                    bool isComputerTurn = (_playerPlaysBlack && _currentPlayer == "white") ||
+                                        (!_playerPlaysBlack && _currentPlayer == "black");
+
+                    // If it's computer's turn, make computer move
+                    if (isComputerTurn)
+                    {
+                        Task.Run(() =>
+                        {
+                            // Small delay for better user experience
+                            System.Threading.Thread.Sleep(500);
+
+                            // Make the computer move
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                _gameLogic.MakeComputerMove();
+                            });
+                        });
+                    }
+
+                    // Update everything
+                    ForceRefreshBoardState();
+                }
+                else
+                {
+                    // User canceled the difficulty change, revert the ComboBox selection
+                    // Find and select the previous difficulty setting
+                    GameLogic.ComputerDifficulty currentDifficulty = _gameLogic.CurrentDifficulty;
+
+                    for (int i = 0; i < DifficultyComboBox.Items.Count; i++)
+                    {
+                        if (DifficultyComboBox.Items[i] is ComboBoxItem item)
+                        {
+                            string diffText = item.Tag?.ToString() ?? "";
+                            if (diffText == currentDifficulty.ToString())
+                            {
+                                // Temporarily remove the event handler
+                                DifficultyComboBox.SelectionChanged -= DifficultyComboBox_SelectionChanged;
+
+                                // Set the selection back
+                                DifficultyComboBox.SelectedIndex = i;
+
+                                // Reattach the event handler
+                                DifficultyComboBox.SelectionChanged += DifficultyComboBox_SelectionChanged;
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -233,15 +336,14 @@ namespace ChessTrainer
         /// <summary>
         /// Creates the side panels for piece selection during setup with dynamic sizing
         /// </summary>
-        /// <summary>
-        /// Creates the side panels for piece selection during setup with dynamic sizing
-        /// </summary>
+        // Modifications to MainWindow.xaml.cs
+
         private void CreateSidePanels()
         {
             // Create side grid for placing pieces with auto width
             Grid sideGrid = new Grid();
 
-            // Use auto-width initially but with min/max constraints
+            // Use auto-width with min/max constraints for better responsiveness
             sideGrid.Width = double.NaN; // Auto width
             sideGrid.MinWidth = 200;     // Minimum width
             sideGrid.MaxWidth = 350;     // Maximum width to avoid taking too much space
@@ -256,7 +358,7 @@ namespace ChessTrainer
             // Add header with larger font
             TextBlock setupHeader = new TextBlock
             {
-                Text = "Розставлення фігур",
+                Text = "Piece Setup",
                 FontSize = 18,
                 FontWeight = FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -297,7 +399,7 @@ namespace ChessTrainer
             // Add title for white pieces with larger text
             TextBlock whiteTitle = new TextBlock
             {
-                Text = "Білі фігури",
+                Text = "White Pieces",
                 FontSize = 16,
                 FontWeight = FontWeights.Bold,
                 Margin = new Thickness(0, 5, 0, 10),
@@ -308,7 +410,7 @@ namespace ChessTrainer
             // Add title for black pieces with larger text
             TextBlock blackTitle = new TextBlock
             {
-                Text = "Чорні фігури",
+                Text = "Black Pieces",
                 FontSize = 16,
                 FontWeight = FontWeights.Bold,
                 Margin = new Thickness(0, 5, 0, 10),
@@ -335,7 +437,7 @@ namespace ChessTrainer
                 Background = new SolidColorBrush(Colors.WhiteSmoke),
                 Margin = new Thickness(10),
                 Padding = new Thickness(10),
-                HorizontalAlignment = HorizontalAlignment.Left // Важливо! Дозволяє автоматично адаптувати розмір
+                HorizontalAlignment = HorizontalAlignment.Left // Important! Allows to auto-adapt size
             };
 
             StackPanel setupContainer = new StackPanel();
@@ -348,7 +450,7 @@ namespace ChessTrainer
             Grid.SetColumn(setupBorder, 3);
             Grid.SetRow(setupBorder, 1);
 
-            // Initially hide panels
+            // Initially hide the panel
             setupBorder.Visibility = Visibility.Collapsed;
 
             // Store reference to side grid
@@ -831,6 +933,9 @@ namespace ChessTrainer
 
             if (_isSetupPositionMode)
             {
+                // Resize window to accommodate setup panel
+                this.Width = 1460;
+
                 // Stop timers when entering setup mode
                 StopTimers();
                 _isTimersPaused = true;
@@ -864,6 +969,9 @@ namespace ChessTrainer
             }
             else
             {
+                // Resize window back to normal size
+                this.Width = 1100;
+
                 // Exit setup mode
                 if (SideGrid is UIElement sidePanel)
                 {
@@ -891,7 +999,6 @@ namespace ChessTrainer
                 UpdateBoardUI();
             }
         }
-
         /// <summary>
         /// Handles clicks on the chess board.
         /// </summary>
@@ -1535,6 +1642,10 @@ namespace ChessTrainer
             _isTimersPaused = false;
 
             UpdateTimersDisplay();
+
+            // Make sure the button text is correct at initialization
+            if (TimerControlButton != null)
+                TimerControlButton.Content = "Pause Timers";
         }
 
         /// <summary>
@@ -1749,6 +1860,29 @@ namespace ChessTrainer
         /// <param name="lines">Lines from the file.</param>
         private void LoadGameFromFile(string[] lines)
         {
+            // Reset window size to normal when loading a game
+            this.Width = 1100;
+
+            // Exit setup mode if active
+            if (_isSetupPositionMode)
+            {
+                _isSetupPositionMode = false;
+                if (SideGrid is UIElement sidePanel)
+                {
+                    sidePanel.Visibility = Visibility.Collapsed;
+                }
+                if (ClearBoardButton != null)
+                {
+                    ClearBoardButton.Visibility = Visibility.Collapsed;
+                }
+                // Find and reset the setup button
+                Button? setupButton = FindButtonByContent("Finish Setup");
+                if (setupButton != null)
+                {
+                    setupButton.Content = "Setup Position";
+                }
+            }
+
             Piece?[,] boardState = new Piece?[8, 8];
 
             // Parse board data
@@ -1786,14 +1920,244 @@ namespace ChessTrainer
             _currentPlayer = currentPlayer;
             UpdateStatusText();
             UpdateMoveHistoryFromLoaded(moveHistory);
-            //ResetTimers();
-            //StartTimers();
-            ShowGameModeSelectionDialog();
+
+            // Ask user if they want to play against the computer or two-player
+            MessageBoxResult result = MessageBox.Show(
+                "Would you like to play against the computer with this position?",
+                "Game Mode Selection",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                // Show game mode dialog but only for computer mode settings
+                ShowComputerModeDialog();
+            }
+            else
+            {
+                // Set to two-player mode
+                _isComputerMode = false;
+                _gameLogic.SetComputerMode(false);
+                IsComputerMode = false;
+
+                if (DifficultyComboBox != null)
+                    DifficultyComboBox.Visibility = Visibility.Collapsed;
+            }
 
             MessageBox.Show("Position loaded.", "Load");
-
         }
 
+        /// <summary>
+        /// Shows a dialog for computer mode settings only (color and difficulty)
+        /// </summary>
+        private void ShowComputerModeDialog()
+        {
+            // Create a dialog window
+            Window computerModeWindow = new Window
+            {
+                Title = "Computer Opponent Settings",
+                Width = 350,
+                Height = 450,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                ResizeMode = ResizeMode.NoResize,
+                Background = Brushes.White
+            };
+
+            // Create a main layout panel
+            StackPanel mainPanel = new StackPanel
+            {
+                Margin = new Thickness(20)
+            };
+
+            // Add title
+            TextBlock titleLabel = new TextBlock
+            {
+                Text = "Computer Opponent Settings",
+                FontSize = 18,
+                Margin = new Thickness(0, 0, 0, 20),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                FontWeight = FontWeights.Bold
+            };
+            mainPanel.Children.Add(titleLabel);
+
+            // Create color selection for computer mode
+            GroupBox colorGroupBox = new GroupBox
+            {
+                Header = "Play As",
+                Padding = new Thickness(10)
+            };
+
+            StackPanel colorPanel = new StackPanel();
+
+            RadioButton whiteRadio = new RadioButton
+            {
+                Content = "White",
+                Margin = new Thickness(0, 0, 0, 10),
+                IsChecked = !_playerPlaysBlack
+            };
+
+            RadioButton blackRadio = new RadioButton
+            {
+                Content = "Black",
+                Margin = new Thickness(0, 0, 0, 10),
+                IsChecked = _playerPlaysBlack
+            };
+
+            colorPanel.Children.Add(whiteRadio);
+            colorPanel.Children.Add(blackRadio);
+            colorGroupBox.Content = colorPanel;
+            mainPanel.Children.Add(colorGroupBox);
+
+            // Create difficulties dropdown for computer mode
+            GroupBox difficultyGroupBox = new GroupBox
+            {
+                Header = "Computer Difficulty",
+                Padding = new Thickness(10),
+                Margin = new Thickness(0, 10, 0, 0)
+            };
+
+            ComboBox difficultyCombo = new ComboBox
+            {
+                Margin = new Thickness(0, 5, 0, 5)
+            };
+
+            // Add random mode first
+            difficultyCombo.Items.Add(new ComboBoxItem { Content = "Random", Tag = "Random" });
+            difficultyCombo.Items.Add(new ComboBoxItem { Content = "Easy", Tag = "Easy" });
+            difficultyCombo.Items.Add(new ComboBoxItem { Content = "Medium", Tag = "Medium" });
+            difficultyCombo.Items.Add(new ComboBoxItem { Content = "Hard", Tag = "Hard" });
+            difficultyCombo.Items.Add(new ComboBoxItem { Content = "Expert", Tag = "Expert" });
+
+            // Select current difficulty level
+            for (int i = 0; i < difficultyCombo.Items.Count; i++)
+            {
+                if (difficultyCombo.Items[i] is ComboBoxItem item)
+                {
+                    string difficulty = item.Tag?.ToString() ?? "";
+                    if (difficulty == _gameLogic.CurrentDifficulty.ToString())
+                    {
+                        difficultyCombo.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // Default to Medium if not found
+            if (difficultyCombo.SelectedIndex == -1)
+                difficultyCombo.SelectedIndex = 2; // Medium is now index 2
+
+            difficultyGroupBox.Content = difficultyCombo;
+            mainPanel.Children.Add(difficultyGroupBox);
+
+            // Add label for explanation of Random mode
+            TextBlock randomExplanation = new TextBlock
+            {
+                Text = "Random mode makes the computer choose moves randomly rather than strategically.",
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(10, 5, 10, 15),
+                Foreground = Brushes.Gray,
+                FontStyle = FontStyles.Italic
+            };
+            mainPanel.Children.Add(randomExplanation);
+
+            // Add OK button
+            Button okButton = new Button
+            {
+                Content = "OK",
+                Margin = new Thickness(0, 20, 0, 0),
+                Padding = new Thickness(20, 5, 20, 5),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                MinWidth = 80
+            };
+
+            okButton.Click += (s, e) =>
+            {
+                // Apply computer mode
+                _isComputerMode = true;
+                _gameLogic.SetComputerMode(true);
+                IsComputerMode = true;
+
+                // Apply color selection
+                _playerPlaysBlack = blackRadio.IsChecked == true;
+                _playerColor = _playerPlaysBlack ? ChessColor.Black : ChessColor.White;
+                _gameLogic.PlayerPlaysBlack = _playerPlaysBlack;
+
+                // Update UI to reflect player's color
+                if (PlayAsWhiteRadioButton != null)
+                    PlayAsWhiteRadioButton.IsChecked = !_playerPlaysBlack;
+                if (PlayAsBlackRadioButton != null)
+                    PlayAsBlackRadioButton.IsChecked = _playerPlaysBlack;
+
+                // Apply difficulty
+                if (difficultyCombo.SelectedItem is ComboBoxItem selectedItem)
+                {
+                    string difficultyStr = selectedItem.Tag?.ToString() ?? "Medium";
+                    _gameLogic.CurrentDifficulty = difficultyStr switch
+                    {
+                        "Random" => GameLogic.ComputerDifficulty.Random,
+                        "Easy" => GameLogic.ComputerDifficulty.Easy,
+                        "Medium" => GameLogic.ComputerDifficulty.Medium,
+                        "Hard" => GameLogic.ComputerDifficulty.Hard,
+                        "Expert" => GameLogic.ComputerDifficulty.Expert,
+                        _ => GameLogic.ComputerDifficulty.Medium
+                    };
+
+                    // Update difficulty combobox in main UI
+                    if (DifficultyComboBox != null)
+                    {
+                        for (int i = 0; i < DifficultyComboBox.Items.Count; i++)
+                        {
+                            if (DifficultyComboBox.Items[i] is ComboBoxItem item &&
+                                item.Tag?.ToString() == difficultyStr)
+                            {
+                                // Temporarily remove the event handler
+                                DifficultyComboBox.SelectionChanged -= DifficultyComboBox_SelectionChanged;
+
+                                DifficultyComboBox.SelectedIndex = i;
+
+                                // Reattach the event handler
+                                DifficultyComboBox.SelectionChanged += DifficultyComboBox_SelectionChanged;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Show difficulty combobox
+                if (DifficultyComboBox != null)
+                    DifficultyComboBox.Visibility = Visibility.Visible;
+
+                // Check if it's computer's turn
+                bool isComputerTurn = (_playerPlaysBlack && _currentPlayer == "white") ||
+                                    (!_playerPlaysBlack && _currentPlayer == "black");
+
+                // If it's computer's turn, make computer move
+                if (isComputerTurn)
+                {
+                    Task.Run(() =>
+                    {
+                        // Small delay for better user experience
+                        System.Threading.Thread.Sleep(500);
+
+                        // Make the computer move
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            _gameLogic.MakeComputerMove();
+                        });
+                    });
+                }
+
+                // Update all UI
+                UpdateStatusText();
+                ForceRefreshBoardState();
+
+                computerModeWindow.Close();
+            };
+
+            mainPanel.Children.Add(okButton);
+            computerModeWindow.Content = mainPanel;
+            computerModeWindow.ShowDialog();
+        }
         /// <summary>
         /// Parses a board row from file data.
         /// </summary>
@@ -1943,8 +2307,28 @@ namespace ChessTrainer
             Board = _gameLogic.GetCurrentBoard();
             ClearMoveHistory();
 
-            // Show game mode selection dialog
-            ShowGameModeSelectionDialog();
+            // Ask user if they want to play against computer with this position
+            MessageBoxResult result = MessageBox.Show(
+                "Would you like to play against the computer with this position?",
+                "Game Mode Selection",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                // Show computer mode dialog only for computer settings (color/difficulty)
+                ShowComputerModeDialog();
+            }
+            else
+            {
+                // Set to two-player mode
+                _isComputerMode = false;
+                _gameLogic.SetComputerMode(false);
+                IsComputerMode = false;
+
+                if (DifficultyComboBox != null)
+                    DifficultyComboBox.Visibility = Visibility.Collapsed;
+            }
         }
 
         /// <summary>
@@ -1957,7 +2341,7 @@ namespace ChessTrainer
             {
                 Title = "Select Game Mode",
                 Width = 400,
-                Height = 600,
+                Height = 650, // Increased height for more content
                 WindowStartupLocation = WindowStartupLocation.CenterScreen,
                 ResizeMode = ResizeMode.NoResize,
                 Background = Brushes.White
@@ -2050,6 +2434,8 @@ namespace ChessTrainer
                 Margin = new Thickness(0, 5, 0, 5)
             };
 
+            // Add random mode first
+            difficultyCombo.Items.Add(new ComboBoxItem { Content = "Random", Tag = "Random" });
             difficultyCombo.Items.Add(new ComboBoxItem { Content = "Easy", Tag = "Easy" });
             difficultyCombo.Items.Add(new ComboBoxItem { Content = "Medium", Tag = "Medium" });
             difficultyCombo.Items.Add(new ComboBoxItem { Content = "Hard", Tag = "Hard" });
@@ -2071,27 +2457,41 @@ namespace ChessTrainer
 
             // Default to Medium if not found
             if (difficultyCombo.SelectedIndex == -1)
-                difficultyCombo.SelectedIndex = 1;
+                difficultyCombo.SelectedIndex = 2; // Medium is now index 2
 
             difficultyGroupBox.Content = difficultyCombo;
             mainPanel.Children.Add(difficultyGroupBox);
+
+            // Add label for explanation of Random mode
+            TextBlock randomExplanation = new TextBlock
+            {
+                Text = "Random mode makes the computer choose moves randomly rather than strategically.",
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(10, 5, 10, 5),
+                Foreground = Brushes.Gray,
+                FontStyle = FontStyles.Italic
+            };
+            mainPanel.Children.Add(randomExplanation);
 
             // Bind visibility of color and difficulty panels to computer mode selection
             computerModeRadio.Checked += (s, e) =>
             {
                 colorGroupBox.Visibility = Visibility.Visible;
                 difficultyGroupBox.Visibility = Visibility.Visible;
+                randomExplanation.Visibility = Visibility.Visible;
             };
 
             humanModeRadio.Checked += (s, e) =>
             {
                 colorGroupBox.Visibility = Visibility.Collapsed;
                 difficultyGroupBox.Visibility = Visibility.Collapsed;
+                randomExplanation.Visibility = Visibility.Collapsed;
             };
 
             // Initialize visibility
             colorGroupBox.Visibility = computerModeRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
             difficultyGroupBox.Visibility = computerModeRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            randomExplanation.Visibility = computerModeRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
 
             // Add OK button
             Button okButton = new Button
@@ -2105,6 +2505,8 @@ namespace ChessTrainer
 
             okButton.Click += (s, e) =>
             {
+                bool wasComputerMode = _isComputerMode;
+
                 // Apply selected mode
                 _isComputerMode = computerModeRadio.IsChecked == true;
                 _gameLogic.SetComputerMode(_isComputerMode);
@@ -2129,6 +2531,7 @@ namespace ChessTrainer
                         string difficultyStr = selectedItem.Tag?.ToString() ?? "Medium";
                         _gameLogic.CurrentDifficulty = difficultyStr switch
                         {
+                            "Random" => GameLogic.ComputerDifficulty.Random,
                             "Easy" => GameLogic.ComputerDifficulty.Easy,
                             "Medium" => GameLogic.ComputerDifficulty.Medium,
                             "Hard" => GameLogic.ComputerDifficulty.Hard,
@@ -2154,15 +2557,6 @@ namespace ChessTrainer
                     // Show difficulty combobox
                     if (DifficultyComboBox != null)
                         DifficultyComboBox.Visibility = Visibility.Visible;
-
-                    // Check if computer needs to make a move
-                    bool isComputerTurn = (_playerPlaysBlack && _currentPlayer == "white") ||
-                                        (!_playerPlaysBlack && _currentPlayer == "black");
-
-                    if (isComputerTurn)
-                    {
-                        _gameLogic.MakeComputerMove();
-                    }
                 }
                 else
                 {
@@ -2171,14 +2565,26 @@ namespace ChessTrainer
                         DifficultyComboBox.Visibility = Visibility.Collapsed;
                 }
 
-                // Enable game mode
-                _isGameActive = true;
-                _isAnalysisMode = false;
-                _isTimersPaused = false;
+                // Check if it's computer's turn after potential new game
+                bool isComputerTurn = _isComputerMode &&
+                                    ((_playerPlaysBlack && _currentPlayer == "white") ||
+                                     (!_playerPlaysBlack && _currentPlayer == "black"));
 
-                // Reset timers
-                ResetTimers();
-                StartTimers();
+                // If it's computer's turn, make computer move
+                if (isComputerTurn)
+                {
+                    Task.Run(() =>
+                    {
+                        // Small delay for better user experience
+                        System.Threading.Thread.Sleep(500);
+
+                        // Make the computer move
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            _gameLogic.MakeComputerMove();
+                        });
+                    });
+                }
 
                 // Update everything
                 UpdateStatusText();
@@ -2319,6 +2725,9 @@ namespace ChessTrainer
         {
             if (ShowConfirmation("Are you sure you want to start a new game? All unsaved progress will be lost."))
             {
+                // Reset window size to normal
+                this.Width = 1100;
+
                 // Clear move history first
                 ClearMoveHistory();
 
@@ -2335,19 +2744,33 @@ namespace ChessTrainer
                 // Exit setup mode if active
                 if (_isSetupPositionMode)
                 {
-                    SetupPosition_Click(sender, e);
+                    _isSetupPositionMode = false;
+
+                    if (SideGrid is UIElement sidePanel)
+                    {
+                        sidePanel.Visibility = Visibility.Collapsed;
+                    }
+
+                    if (ClearBoardButton != null)
+                    {
+                        ClearBoardButton.Visibility = Visibility.Collapsed;
+                    }
+
+                    // Find and update the setup button
+                    Button? setupButton = FindButtonByContent("Finish Setup");
+                    if (setupButton != null)
+                    {
+                        setupButton.Content = "Setup Position";
+                    }
                 }
 
                 // Exit analysis mode if active
                 if (_isAnalysisMode)
                 {
                     _isAnalysisMode = false;
-                    if (sender is Button)
-                    {
-                        Button? analyzeButton = FindButtonByContent("Analyze Position");
-                        if (analyzeButton != null)
-                            analyzeButton.Content = "Analyze Position";
-                    }
+                    Button? analyzeButton = FindButtonByContent("Exit Analysis");
+                    if (analyzeButton != null)
+                        analyzeButton.Content = "Analyze Position";
                 }
 
                 // Reset timers
@@ -2366,8 +2789,9 @@ namespace ChessTrainer
         /// </summary>
         private void ClearBoard_Click(object sender, RoutedEventArgs e)
         {
-            if (ShowConfirmation("Are you sure you want to clear the board and move history?"))
+            if (_isSetupPositionMode)
             {
+                // In setup mode, we don't need to ask for confirmation - just clear the board
                 _gameLogic.ClearBoard();
                 UpdateBoardUI();
                 ClearMoveHistory();
@@ -2375,10 +2799,7 @@ namespace ChessTrainer
                 UpdateStatusText();
 
                 // Reset piece counts display in setup mode
-                if (_isSetupPositionMode)
-                {
-                    RefreshSetupPanelDisplay();
-                }
+                RefreshSetupPanelDisplay();
 
                 ResetTimers();
                 _isTimersPaused = false;
@@ -2389,6 +2810,27 @@ namespace ChessTrainer
                 _isGameActive = true;
                 ClearHighlights();
             }
+            else
+            {
+                // Outside of setup mode, ask for confirmation
+                if (ShowConfirmation("Are you sure you want to clear the board and move history?"))
+                {
+                    _gameLogic.ClearBoard();
+                    UpdateBoardUI();
+                    ClearMoveHistory();
+                    _currentPlayer = "white";
+                    UpdateStatusText();
+
+                    ResetTimers();
+                    _isTimersPaused = false;
+                    if (TimerControlButton != null)
+                        TimerControlButton.Content = "Pause Timers";
+                    StartTimers();
+
+                    _isGameActive = true;
+                    ClearHighlights();
+                }
+            }
         }
 
         /// <summary>
@@ -2398,10 +2840,16 @@ namespace ChessTrainer
         {
             if (_isComputerMode)
             {
-                if (ShowConfirmation("Switch to two player mode? This will start a new game."))
+                // Single confirmation dialog asking about switching modes and starting a new game
+                MessageBoxResult result = MessageBox.Show(
+                    "Switch to two player mode? This will start a new game.",
+                    "Switch to Two Players Mode",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
                 {
-                    StartNewGame_Click(sender, e);
-                    ClearMoveHistory();
+                    // Directly proceed with mode switch and new game - no second confirmation
                     _isComputerMode = false;
                     _gameLogic.SetComputerMode(false);
 
@@ -2409,11 +2857,23 @@ namespace ChessTrainer
                         DifficultyComboBox.Visibility = Visibility.Collapsed;
 
                     IsComputerMode = false;
-                    UpdateStatusText();
 
+                    // Clear history and start new game
+                    ClearMoveHistory();
+                    _currentPlayer = "white";
+                    _gameLogic.InitializeGame();
+                    InitializeBoardUI();
+                    UpdateBoardUI();
+
+                    // Reset timers
                     _isTimersPaused = false;
                     ResetTimers();
                     StartTimers();
+
+                    if (TimerControlButton != null)
+                        TimerControlButton.Content = "Pause Timers";
+
+                    UpdateStatusText();
                 }
             }
         }
@@ -2434,7 +2894,7 @@ namespace ChessTrainer
 
             // Always confirm first to avoid multiple dialog boxes
             MessageBoxResult result = MessageBox.Show(
-                "Switch to computer mode? Current position will be kept.",
+                "Switch to computer mode? This will start a new game.",
                 "Switch to Computer Mode",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
@@ -2455,6 +2915,14 @@ namespace ChessTrainer
             _playerColor = PlayAsWhiteRadioButton?.IsChecked == true ? ChessColor.White : ChessColor.Black;
             _gameLogic.PlayerPlaysBlack = _playerColor == ChessColor.Black;
 
+            // Clear move history first
+            ClearMoveHistory();
+
+            // Reset the game
+            _currentPlayer = "white";
+            _gameLogic.InitializeGame();
+            InitializeBoardUI();
+
             // Exit analysis mode if active
             if (_isAnalysisMode)
             {
@@ -2468,7 +2936,12 @@ namespace ChessTrainer
             _isTimersPaused = false;
             ResetTimers();
 
-            // Check current player and if it's computer's turn
+            // Start timers based on current player
+            StartTimers();
+
+            UpdateStatusText();
+
+            // Check if it's computer's turn
             bool isComputerTurn = (_playerPlaysBlack && _currentPlayer == "white") ||
                                 (!_playerPlaysBlack && _currentPlayer == "black");
 
@@ -2480,12 +2953,8 @@ namespace ChessTrainer
 
             // Force refresh after any computer move
             ForceRefreshBoardState();
-
-            // Start timers based on current player
-            StartTimers();
-
-            UpdateStatusText();
         }
+
         /// <summary>
         /// Handles player color radio button checks.
         /// </summary>
@@ -2633,6 +3102,7 @@ namespace ChessTrainer
                 FindButtonByContentRecursive(child, content, ref result);
             }
         }
+
 
 
         #endregion

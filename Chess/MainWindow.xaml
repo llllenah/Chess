@@ -5,14 +5,14 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ChessTrainer"
         mc:Ignorable="d"
-        Title="Шаховий тренажер" Height="800" Width="1200"
-        MinHeight="600" MinWidth="1460"
+        Title="Chess Trainer" Height="800" Width="1200"
+        MinHeight="600" MinWidth="1000"
         ResizeMode="CanMinimize">
     <Window.Resources>
         <local:PieceConverter x:Key="PieceConverter" />
         <local:BooleanToVisibilityConverter x:Key="BooleanToVisibility"/>
 
-        <!-- Стиль для кнопок -->
+        <!-- Button Style -->
         <Style x:Key="GameButton" TargetType="Button">
             <Setter Property="Background" Value="#3F51B5"/>
             <Setter Property="Foreground" Value="White"/>
@@ -48,7 +48,7 @@
             </Setter>
         </Style>
 
-        <!-- Стиль для кнопки аналізу -->
+        <!-- Analysis Button Style -->
         <Style x:Key="AnalysisButton" TargetType="Button" BasedOn="{StaticResource GameButton}">
             <Setter Property="Background" Value="#673AB7"/>
             <Setter Property="Template">
@@ -75,7 +75,7 @@
             </Setter>
         </Style>
 
-        <!-- Стиль для кнопки таймера -->
+        <!-- Timer Button Style -->
         <Style x:Key="TimerButton" TargetType="Button" BasedOn="{StaticResource GameButton}">
             <Setter Property="Background" Value="#009688"/>
             <Setter Property="Template">
@@ -102,7 +102,7 @@
             </Setter>
         </Style>
 
-        <!-- Стиль для небезпечних дій -->
+        <!-- Danger Button Style -->
         <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource GameButton}">
             <Setter Property="Background" Value="#F44336"/>
             <Setter Property="Template">
@@ -129,7 +129,7 @@
             </Setter>
         </Style>
 
-        <!-- Стиль для заголовків секцій -->
+        <!-- Section Title Style -->
         <Style x:Key="SectionTitle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="14"/>
@@ -137,7 +137,7 @@
             <Setter Property="Margin" Value="0,15,0,5"/>
         </Style>
 
-        <!-- Стиль для координат шахівниці -->
+        <!-- Board Label Style -->
         <Style x:Key="BoardLabelStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="Bold"/>
@@ -161,15 +161,15 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Статус гри -->
+        <!-- Game Status -->
         <Border Grid.Column="0" Grid.Row="0" Margin="10,10,10,0" 
                 Background="#303F9F" CornerRadius="3">
             <TextBlock x:Name="StatusTextBlock" 
-                       Text="Статус гри" Margin="10" FontSize="14" 
+                       Text="Game Status" Margin="10" FontSize="14" 
                        FontWeight="Bold" Foreground="White"/>
         </Border>
 
-        <!-- Шахова дошка з координатами -->
+        <!-- Chess Board with Coordinates -->
         <Border Grid.Row="1" Grid.Column="0" Margin="10" 
                 BorderBrush="#795548" BorderThickness="5" 
                 CornerRadius="3" Background="#EEEEEE">
@@ -185,7 +185,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Горизонтальні координати (букви) зверху -->
+                <!-- Horizontal coordinates (letters) top -->
                 <UniformGrid Grid.Row="0" Grid.Column="1" Rows="1" Columns="8" Name="TopFileLabels">
                     <TextBlock Text="a" Style="{StaticResource BoardLabelStyle}"/>
                     <TextBlock Text="b" Style="{StaticResource BoardLabelStyle}"/>
@@ -197,7 +197,7 @@
                     <TextBlock Text="h" Style="{StaticResource BoardLabelStyle}"/>
                 </UniformGrid>
 
-                <!-- Вертикальні координати (цифри) зліва -->
+                <!-- Vertical coordinates (numbers) left -->
                 <UniformGrid Grid.Row="1" Grid.Column="0" Rows="8" Columns="1" Name="LeftRankLabels">
                     <TextBlock Text="8" Style="{StaticResource BoardLabelStyle}"/>
                     <TextBlock Text="7" Style="{StaticResource BoardLabelStyle}"/>
@@ -209,7 +209,7 @@
                     <TextBlock Text="1" Style="{StaticResource BoardLabelStyle}"/>
                 </UniformGrid>
 
-                <!-- Горизонтальні координати (букви) знизу -->
+                <!-- Horizontal coordinates (letters) bottom -->
                 <UniformGrid Grid.Row="2" Grid.Column="1" Rows="1" Columns="8" Name="BottomFileLabels">
                     <TextBlock Text="a" Style="{StaticResource BoardLabelStyle}"/>
                     <TextBlock Text="b" Style="{StaticResource BoardLabelStyle}"/>
@@ -221,7 +221,7 @@
                     <TextBlock Text="h" Style="{StaticResource BoardLabelStyle}"/>
                 </UniformGrid>
 
-                <!-- Вертикальні координати (цифри) справа -->
+                <!-- Vertical coordinates (numbers) right -->
                 <UniformGrid Grid.Row="1" Grid.Column="2" Rows="8" Columns="1" Name="RightRankLabels">
                     <TextBlock Text="8" Style="{StaticResource BoardLabelStyle}"/>
                     <TextBlock Text="7" Style="{StaticResource BoardLabelStyle}"/>
@@ -233,7 +233,7 @@
                     <TextBlock Text="1" Style="{StaticResource BoardLabelStyle}"/>
                 </UniformGrid>
 
-                <!-- Сама шахівниця -->
+                <!-- Chess Board -->
                 <ItemsControl x:Name="ChessBoardItemsControl" Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Board}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -310,7 +310,7 @@
             </Grid>
         </Border>
 
-        <!-- Результат гри -->
+        <!-- Game Result -->
         <Border Grid.Column="0" Grid.Row="2" Margin="10,0,10,10" 
                 Background="#F5F5F5" CornerRadius="3"
                 BorderBrush="#BDBDBD" BorderThickness="1">
@@ -319,79 +319,79 @@
                        FontWeight="SemiBold"/>
         </Border>
 
-        <!-- Панель керування -->
+        <!-- Control Panel -->
         <Border Grid.Column="1" Margin="10,10,10,10" 
                 Background="#F5F5F5" CornerRadius="5" 
                 BorderBrush="#BDBDBD" BorderThickness="1" Grid.RowSpan="3">
             <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,9,9">
                 <StackPanel Margin="10">
-                    <TextBlock Text="Управління грою" Style="{StaticResource SectionTitle}" FontSize="16"/>
-                    <Button Content="Нова гра" Style="{StaticResource GameButton}" Click="StartNewGame_Click"/>
-                    <Button x:Name="ClearBoardButton" Content="Очистити дошку" Style="{StaticResource DangerButton}" 
+                    <TextBlock Text="Game Controls" Style="{StaticResource SectionTitle}" FontSize="16"/>
+                    <Button Content="New Game" Style="{StaticResource GameButton}" Click="StartNewGame_Click"/>
+                    <Button x:Name="ClearBoardButton" Content="Clear Board" Style="{StaticResource DangerButton}" 
                             Click="ClearBoard_Click" Visibility="Collapsed"/>
 
                     <Separator Margin="0,10,0,10"/>
 
-                    <TextBlock Text="Режим гри" Style="{StaticResource SectionTitle}"/>
-                    <Button Content="Режим 2 гравці" Style="{StaticResource GameButton}" 
+                    <TextBlock Text="Game Mode" Style="{StaticResource SectionTitle}"/>
+                    <Button Content="Two Players Mode" Style="{StaticResource GameButton}" 
                             Click="SetTwoPlayersMode_Click"/>
-                    <Button Content="Режим проти комп'ютера" Style="{StaticResource GameButton}" 
+                    <Button Content="Computer Opponent" Style="{StaticResource GameButton}" 
                             Click="SetComputerMode_Click"/>
 
-                    <!-- Вибір кольору гравця -->
+                    <!-- Player Color Selection -->
                     <StackPanel Orientation="Vertical" 
                                 Visibility="{Binding IsComputerMode, Converter={StaticResource BooleanToVisibility}}"
                                 Margin="0,10,0,0">
-                        <TextBlock Text="Виберіть колір:" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="Select your color:" Style="{StaticResource SectionTitle}"/>
                         <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
                             <RadioButton x:Name="PlayAsWhiteRadioButton" 
-                                         Content="Грати за білих" 
+                                         Content="Play as White" 
                                          IsChecked="True"
                                          Checked="PlayerColorRadioButton_Checked"
                                          Margin="0,0,10,0"/>
                             <RadioButton x:Name="PlayAsBlackRadioButton" 
-                                         Content="Грати за чорних"
+                                         Content="Play as Black"
                                          Checked="PlayerColorRadioButton_Checked"/>
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Рівень складності -->
+                    <!-- Difficulty Level -->
                     <StackPanel Margin="0,5,0,5" 
                                 Visibility="{Binding IsComputerMode, Converter={StaticResource BooleanToVisibility}}">
-                        <TextBlock Text="Рівень складності:" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="Difficulty Level:" Style="{StaticResource SectionTitle}"/>
                         <ComboBox x:Name="DifficultyComboBox" 
                                   SelectionChanged="DifficultyComboBox_SelectionChanged"
                                   Margin="0,5,0,10" Padding="5,3">
-                            <ComboBoxItem Content="Випадковий" Tag="Random"/>
-                            <ComboBoxItem Content="Легкий" Tag="Easy"/>
-                            <ComboBoxItem Content="Середній" Tag="Medium"/>
-                            <ComboBoxItem Content="Складний" Tag="Hard"/>
-                            <ComboBoxItem Content="Експерт" Tag="Expert"/>
+                            <ComboBoxItem Content="Random" Tag="Random"/>
+                            <ComboBoxItem Content="Easy" Tag="Easy"/>
+                            <ComboBoxItem Content="Medium" Tag="Medium"/>
+                            <ComboBoxItem Content="Hard" Tag="Hard"/>
+                            <ComboBoxItem Content="Expert" Tag="Expert"/>
                         </ComboBox>
                     </StackPanel>
 
                     <Separator Margin="0,10,0,10"/>
 
-                    <TextBlock Text="Аналіз" Style="{StaticResource SectionTitle}"/>
-                    <Button Content="Аналізувати позицію" Style="{StaticResource AnalysisButton}" 
+                    <TextBlock Text="Analysis" Style="{StaticResource SectionTitle}"/>
+                    <Button Content="Analyze Position" Style="{StaticResource AnalysisButton}" 
                             Click="AnalyzePosition_Click"/>
 
                     <Separator Margin="0,10,0,10"/>
 
-                    <TextBlock Text="Додаткові опції" Style="{StaticResource SectionTitle}"/>
-                    <Button Content="Розставити фігури" Style="{StaticResource GameButton}" 
+                    <TextBlock Text="Additional Options" Style="{StaticResource SectionTitle}"/>
+                    <Button Content="Setup Position" Style="{StaticResource GameButton}" 
                             Click="SetupPosition_Click"/>
-                    <Button Content="Зберегти позицію" Style="{StaticResource GameButton}" 
+                    <Button Content="Save Position" Style="{StaticResource GameButton}" 
                             Click="SavePosition_Click"/>
-                    <Button Content="Завантажити позицію" Style="{StaticResource GameButton}" 
+                    <Button Content="Load Position" Style="{StaticResource GameButton}" 
                             Click="LoadPosition_Click"/>
-                    <CheckBox x:Name="FlipBoardCheckBox" Content="Перевернути дошку" 
+                    <CheckBox x:Name="FlipBoardCheckBox" Content="Flip Board" 
                               Checked="FlipBoardCheckBox_Checked" 
                               Unchecked="FlipBoardCheckBox_Checked" 
                               Margin="0,10,0,0"/>
 
-                    <!-- Історія ходів -->
-                    <TextBlock Text="Історія ходів:" Style="{StaticResource SectionTitle}"/>
+                    <!-- Move History -->
+                    <TextBlock Text="Move History:" Style="{StaticResource SectionTitle}"/>
                     <Border BorderBrush="#BDBDBD" BorderThickness="1" CornerRadius="3" Margin="0,5,0,0">
                         <ListBox x:Name="MoveHistoryListBox" Height="150" BorderThickness="0"/>
                     </Border>
@@ -399,24 +399,24 @@
             </ScrollViewer>
         </Border>
 
-        <!-- Шахові годинники -->
+        <!-- Chess Timers -->
         <Border Grid.Column="2" Margin="10,10,10,379" 
                 Background="#F5F5F5" CornerRadius="5"
                 BorderBrush="#BDBDBD" BorderThickness="1" Grid.RowSpan="2">
             <StackPanel Margin="10">
-                <TextBlock Text="Шахові годинники" Style="{StaticResource SectionTitle}" 
+                <TextBlock Text="Chess Timers" Style="{StaticResource SectionTitle}" 
                            HorizontalAlignment="Center" Margin="0,0,0,10"/>
 
-                <!-- Таймер з активним індикатором -->
+                <!-- Timer with Active Indicator -->
                 <Border x:Name="WhiteTimerBorder" Background="White" CornerRadius="3" Margin="0,5,0,10" 
                         BorderBrush="#BDBDBD" BorderThickness="2">
                     <Grid>
-                        <!-- Індикатор активного таймера -->
+                        <!-- Active Timer Indicator -->
                         <Rectangle x:Name="WhiteActiveIndicator" Fill="#4CAF50" Height="5" 
                                    VerticalAlignment="Top" HorizontalAlignment="Stretch"
                                    Visibility="Collapsed"/>
                         <StackPanel Margin="10,5">
-                            <TextBlock Text="Білі:" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="White:" FontWeight="Bold" Margin="0,0,0,5"/>
                             <TextBlock x:Name="WhiteTimeTextBlock" Text="00:30:00" 
                                        FontSize="22" FontFamily="Consolas" FontWeight="SemiBold" 
                                        HorizontalAlignment="Center" Margin="0,0,0,5"/>
@@ -424,16 +424,16 @@
                     </Grid>
                 </Border>
 
-                <!-- Таймер з активним індикатором -->
+                <!-- Timer with Active Indicator -->
                 <Border x:Name="BlackTimerBorder" Background="White" CornerRadius="3" Margin="0,10,0,10" 
                         BorderBrush="#BDBDBD" BorderThickness="2">
                     <Grid>
-                        <!-- Індикатор активного таймера -->
+                        <!-- Active Timer Indicator -->
                         <Rectangle x:Name="BlackActiveIndicator" Fill="#4CAF50" Height="5" 
                                    VerticalAlignment="Top" HorizontalAlignment="Stretch"
                                    Visibility="Collapsed"/>
                         <StackPanel Margin="10,5">
-                            <TextBlock Text="Чорні:" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="Black:" FontWeight="Bold" Margin="0,0,0,5"/>
                             <TextBlock x:Name="BlackTimeTextBlock" Text="00:30:00" 
                                        FontSize="22" FontFamily="Consolas" FontWeight="SemiBold" 
                                        HorizontalAlignment="Center" Margin="0,0,0,5"/>
@@ -441,9 +441,9 @@
                     </Grid>
                 </Border>
 
-                <!-- Кнопка управління таймером -->
+                <!-- Timer Control Button -->
                 <Button x:Name="TimerControlButton" 
-                        Content="Пауза таймерів" 
+                        Content="Pause Timers" 
                         Style="{StaticResource TimerButton}" 
                         Click="TimerControl_Click"
                         Margin="0,10,0,0"/>
