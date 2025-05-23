@@ -1427,22 +1427,27 @@ namespace ChessTrainer
                                                c.Piece.Type == pieceType &&
                                                c.Piece.Color == pieceColor);
 
-                _standardPieceCounts.TryGetValue(pieceType, out int standardCount);
-                _maxPieceCounts.TryGetValue(pieceType, out int maxCount);
+                int standardCount = _standardPieceCounts.TryGetValue(pieceType, out int std) ? std : 1;
+                int maxCount = GetActualMaxPieceCount(pieceType);
 
-                string standardText = $"Standard count: {currentCount}/{standardCount}";
-                string maxText = pieceType != "pawn" && pieceType != "king"
-                              ? $"\nMaximum count (with promotions): {maxCount}"
-                              : "";
+                string standardText = $"Standard: {standardCount}";
+                string currentText = $"Current: {currentCount}";
+                string maxText = $"Maximum: {maxCount}";
 
-                pieceBorder.ToolTip = $"{GetPieceTypeName(pieceType)}\n{standardText}{maxText}";
+                pieceBorder.ToolTip = $"{GetPieceTypeName(pieceType)}\n{standardText}\n{currentText}\n{maxText}";
 
-                if (currentCount >= standardCount)
+                // Визначаємо колір рамки та прозорість
+                if (currentCount >= maxCount)
+                {
+                    pieceBorder.BorderBrush = new SolidColorBrush(Colors.Red);
+                    pieceBorder.BorderThickness = new Thickness(2);
+                    pieceBorder.Opacity = 0.4; // Сильно затемнюємо
+                }
+                else if (currentCount >= standardCount)
                 {
                     pieceBorder.BorderBrush = new SolidColorBrush(Colors.Orange);
-                    pieceBorder.BorderThickness = new Thickness(1);
-
-                    pieceBorder.Opacity = currentCount >= maxCount ? 0.5 : 1.0;
+                    pieceBorder.BorderThickness = new Thickness(2);
+                    pieceBorder.Opacity = 0.8; // Трохи затемнюємо
                 }
                 else
                 {
@@ -1451,14 +1456,15 @@ namespace ChessTrainer
                         pieceBorder.BorderBrush = Brushes.Transparent;
                         pieceBorder.BorderThickness = new Thickness(1);
                     }
-                    pieceBorder.Opacity = 1.0;
+                    pieceBorder.Opacity = 1.0; // Повна яскравість
                 }
 
+                // Оновлюємо текст лічильника
                 if (pieceBorder.Child is Grid container && container.Children.Count >= 3)
                 {
                     if (container.Children[2] is TextBlock countTextBlock)
                     {
-                        countTextBlock.Text = $"{currentCount}/{standardCount}";
+                        countTextBlock.Text = $"{currentCount}/{maxCount}";
 
                         if (currentCount >= maxCount)
                         {
@@ -1479,6 +1485,7 @@ namespace ChessTrainer
                 }
             }
         }
+
         /// <summary>
         /// Returns localized piece type name.
         /// </summary>
@@ -1527,37 +1534,343 @@ namespace ChessTrainer
             string pieceType = _selectedPieceForPlacement.Type;
             string pieceColor = _selectedPieceForPlacement.Color;
 
-            int currentCount = Board.Count(c => c.Piece != null &&
-                                       c.Piece.Type == pieceType &&
-                                       c.Piece.Color == pieceColor);
-
-            int maxCount = _maxPieceCounts.TryGetValue(pieceType, out int limit) ? limit : 1;
-
-            if (currentCount >= maxCount)
+            // Перевіряємо чи на цій клітинці вже є така ж фігура
+            if (clickedCell.Piece != null &&
+                clickedCell.Piece.Type == pieceType &&
+                clickedCell.Piece.Color == pieceColor)
             {
-                string localizedType = GetPieceTypeName(pieceType);
+                return;
+            }
+
+            bool isReplacement = clickedCell.Piece != null;
+
+            // Перевіряємо загальну кількість фігур цього кольору
+            int totalPiecesOfColor = GetTotalPiecesForColor(pieceColor);
+            if (!isReplacement && totalPiecesOfColor >= 16)
+            {
                 string localizedColor = pieceColor == "white" ? "White" : "Black";
-                MessageBox.Show($"Maximum number of {localizedType} for {localizedColor} reached ({currentCount}/{maxCount})!",
-                                "Piece Limit",
+                MessageBox.Show($"Cannot place more pieces! {localizedColor} already has the maximum of 16 pieces on the board.\n\n" +
+                               $"Current {localizedColor.ToLower()} pieces: {totalPiecesOfColor}/16\n\n" +
+                               $"To place more pieces, you need to remove some existing {localizedColor.ToLower()} pieces first.",
+                                "Maximum Total Pieces Reached",
                                 MessageBoxButton.OK,
                                 MessageBoxImage.Information);
                 return;
             }
 
+            // Підраховуємо поточну кількість фігур цього типу та кольору
+            int currentCount = Board.Count(c => c.Piece != null &&
+                                           c.Piece.Type == pieceType &&
+                                           c.Piece.Color == pieceColor);
+
+            // Розрахунок максимуму для конкретного типу фігур
+            int maxCount = GetMaxPieceCountForColor(pieceColor, pieceType);
+
+            // Детальне діагностування
+            System.Diagnostics.Debug.WriteLine($"[PLACEMENT] Trying to place {pieceColor} {pieceType}:");
+            System.Diagnostics.Debug.WriteLine($"  Total pieces of {pieceColor}: {totalPiecesOfColor}/16");
+            System.Diagnostics.Debug.WriteLine($"  Current {pieceType} count: {currentCount}");
+            System.Diagnostics.Debug.WriteLine($"  Max {pieceType} count: {maxCount}");
+            System.Diagnostics.Debug.WriteLine($"  Is replacement: {isReplacement}");
+
+            // Перевіряємо чи не перевищуємо ліміт для конкретного типу фігур ТІЛЬКИ якщо це нова фігура (не заміна)
+            if (!isReplacement && currentCount >= maxCount)
+            {
+                string localizedType = GetPieceTypeName(pieceType);
+                string localizedColor = pieceColor == "white" ? "White" : "Black";
+
+                if (pieceType == "king")
+                {
+                    MessageBox.Show($"Only one {localizedColor} {localizedType} is allowed!",
+                                    "Maximum Pieces Reached",
+                                    MessageBoxButton.OK,
+                                    MessageBoxImage.Information);
+                }
+                else if (pieceType == "pawn")
+                {
+                    MessageBox.Show($"Maximum 8 {localizedColor} pawns allowed!",
+                                    "Maximum Pieces Reached",
+                                    MessageBoxButton.OK,
+                                    MessageBoxImage.Information);
+                }
+                else
+                {
+                    int currentPawns = Board.Count(c => c.Piece != null && c.Piece.Type == "pawn" && c.Piece.Color == pieceColor);
+                    int standardCount = GetStandardPieceCount(pieceType);
+                    int missingPawns = Math.Max(0, 8 - currentPawns);
+
+                    // Детальна діагностика всіх фігур
+                    int currentQueens = Board.Count(c => c.Piece != null && c.Piece.Type == "queen" && c.Piece.Color == pieceColor);
+                    int currentRooks = Board.Count(c => c.Piece != null && c.Piece.Type == "rook" && c.Piece.Color == pieceColor);
+                    int currentBishops = Board.Count(c => c.Piece != null && c.Piece.Type == "bishop" && c.Piece.Color == pieceColor);
+                    int currentKnights = Board.Count(c => c.Piece != null && c.Piece.Type == "knight" && c.Piece.Color == pieceColor);
+
+                    int totalExtraPieces = Math.Max(0, currentQueens - 1) +
+                                          Math.Max(0, currentRooks - 2) +
+                                          Math.Max(0, currentBishops - 2) +
+                                          Math.Max(0, currentKnights - 2);
+
+                    MessageBox.Show($"Cannot place more {localizedColor} {localizedType}s!\n\n" +
+                                   $"CURRENT STATE:\n" +
+                                   $"• Total {localizedColor.ToLower()} pieces: {totalPiecesOfColor}/16\n" +
+                                   $"• Pawns: {currentPawns}/8 (missing: {missingPawns})\n" +
+                                   $"• Queens: {currentQueens}\n" +
+                                   $"• Rooks: {currentRooks}\n" +
+                                   $"• Bishops: {currentBishops}\n" +
+                                   $"• Knights: {currentKnights}\n\n" +
+                                   $"LIMITS:\n" +
+                                   $"• Standard {pieceType}s: {standardCount}\n" +
+                                   $"• Max {pieceType}s allowed: {maxCount} (standard + missing pawns)\n" +
+                                   $"• Current {pieceType}s: {currentCount}\n\n" +
+                                   $"EXPLANATION:\n" +
+                                   $"Each missing pawn can become any piece through promotion.\n" +
+                                   $"You have {missingPawns} missing pawns, so you can have up to\n" +
+                                   $"{standardCount} + {missingPawns} = {maxCount} {pieceType}s total.\n\n" +
+                                   $"Total promoted pieces so far: {totalExtraPieces}/{missingPawns}",
+                                    "Maximum Pieces Reached - Type Limit",
+                                    MessageBoxButton.OK,
+                                    MessageBoxImage.Information);
+                }
+                return;
+            }
+
+            // Перевіряємо валідність позиції перед розміщенням
+            var tempPiece = new Piece(pieceColor, pieceType);
+            if (!IsValidPiecePlacement(clickedCell.Row, clickedCell.Col, tempPiece))
+            {
+                return;
+            }
+
+            // Розміщуємо фігуру
             foreach (var cell in Board)
             {
                 if (cell.Row == clickedCell.Row && cell.Col == clickedCell.Col)
                 {
-                    if (cell.Piece != null)
-                    {
-                    }
-
                     cell.Piece = _selectedPieceForPlacement.Clone();
                     break;
                 }
             }
 
             RefreshSetupPanelDisplay();
+        }
+
+        /// <summary>
+        /// Gets the total number of pieces for a specific color
+        /// </summary>
+        private int GetTotalPiecesForColor(string pieceColor)
+        {
+            return Board.Count(c => c.Piece != null && c.Piece.Color == pieceColor);
+        }
+
+        /// <summary>
+        /// Gets maximum allowed count for a specific piece type and color
+        /// </summary>
+        private int GetMaxPieceCountForColor(string pieceColor, string pieceType)
+        {
+            if (pieceType == "king") return 1;
+            if (pieceType == "pawn") return 8;
+
+            int currentPawns = Board.Count(c => c.Piece != null && c.Piece.Type == "pawn" && c.Piece.Color == pieceColor);
+            int missingPawns = Math.Max(0, 8 - currentPawns);
+            int standardCount = GetStandardPieceCount(pieceType);
+
+            // Максимум = стандартна кількість + всі відсутні пішаки (бо кожен пішак може стати цим типом фігури)
+            return standardCount + missingPawns;
+        }
+
+        /// <summary>
+        /// Gets used promotions for a color
+        /// </summary>
+        private int GetUsedPromotions(string color)
+        {
+            int usedPromotions = 0;
+            usedPromotions += Math.Max(0, Board.Count(c => c.Piece != null && c.Piece.Type == "queen" && c.Piece.Color == color) - 1);
+            usedPromotions += Math.Max(0, Board.Count(c => c.Piece != null && c.Piece.Type == "rook" && c.Piece.Color == color) - 2);
+            usedPromotions += Math.Max(0, Board.Count(c => c.Piece != null && c.Piece.Type == "bishop" && c.Piece.Color == color) - 2);
+            usedPromotions += Math.Max(0, Board.Count(c => c.Piece != null && c.Piece.Type == "knight" && c.Piece.Color == color) - 2);
+            return usedPromotions;
+        }
+
+        /// <summary>
+        /// Gets maximum piece count based on standard count + available promotions
+        /// </summary>
+        private int GetMaxPieceCount(string pieceType, int availablePromotions)
+        {
+            int standardCount = GetStandardPieceCount(pieceType);
+
+            return pieceType switch
+            {
+                "king" => 1, // Завжди тільки один
+                "pawn" => 8, // Завжди максимум 8
+                _ => standardCount + availablePromotions // Стандартна кількість + доступні промоції (не загальні)
+            };
+        }
+
+        /// <summary>
+        /// Gets available promotions for a color based on missing pawns
+        /// </summary>
+        private int GetAvailablePromotions(string color)
+        {
+            int currentPawns = Board.Count(c => c.Piece != null && c.Piece.Type == "pawn" && c.Piece.Color == color);
+            int missingPawns = Math.Max(0, 8 - currentPawns); // Скільки пішаків відсутньо
+
+            // Рахуємо скільки промоцій вже використано (понад стандартну кількість)
+            int currentQueens = Board.Count(c => c.Piece != null && c.Piece.Type == "queen" && c.Piece.Color == color);
+            int currentRooks = Board.Count(c => c.Piece != null && c.Piece.Type == "rook" && c.Piece.Color == color);
+            int currentBishops = Board.Count(c => c.Piece != null && c.Piece.Type == "bishop" && c.Piece.Color == color);
+            int currentKnights = Board.Count(c => c.Piece != null && c.Piece.Type == "knight" && c.Piece.Color == color);
+
+            int usedPromotions = 0;
+            usedPromotions += Math.Max(0, currentQueens - 1);    // ферзі понад 1
+            usedPromotions += Math.Max(0, currentRooks - 2);     // тури понад 2
+            usedPromotions += Math.Max(0, currentBishops - 2);   // слони понад 2
+            usedPromotions += Math.Max(0, currentKnights - 2);   // коні понад 2
+
+            // Доступні промоції = відсутні пішаки мінус уже використані промоції
+            int availablePromotions = Math.Max(0, missingPawns - usedPromotions);
+
+            // Діагностичне повідомлення (тимчасово для налагодження)
+            System.Diagnostics.Debug.WriteLine($"[DEBUG] {color} promotions:");
+            System.Diagnostics.Debug.WriteLine($"  Current pawns: {currentPawns}");
+            System.Diagnostics.Debug.WriteLine($"  Missing pawns: {missingPawns}");
+            System.Diagnostics.Debug.WriteLine($"  Current pieces: Q={currentQueens}, R={currentRooks}, B={currentBishops}, N={currentKnights}");
+            System.Diagnostics.Debug.WriteLine($"  Used promotions: {usedPromotions}");
+            System.Diagnostics.Debug.WriteLine($"  Available promotions: {availablePromotions}");
+
+            return availablePromotions;
+        }
+
+        /// <summary>
+        /// Gets the actual maximum count for a piece type (realistic chess limits)
+        /// </summary>
+        private int GetActualMaxPieceCount(string pieceType)
+        {
+            return pieceType switch
+            {
+                "king" => 1,      // Тільки один король
+                "pawn" => 8,      // Максимум 8 пішаків
+                "queen" => 9,     // 1 початковий + 8 від промоції пішаків
+                "rook" => 10,     // 2 початкових + 8 від промоції пішаків  
+                "bishop" => 10,   // 2 початкових + 8 від промоції пішаків
+                "knight" => 10,   // 2 початкових + 8 від промоції пішаків
+                _ => 1
+            };
+        }
+        /// <summary>
+        /// Gets standard piece count for a piece type
+        /// </summary>
+        private int GetStandardPieceCount(string pieceType)
+        {
+            return pieceType switch
+            {
+                "king" => 1,
+                "queen" => 1,
+                "rook" => 2,
+                "bishop" => 2,
+                "knight" => 2,
+                "pawn" => 8,
+                _ => 0
+            };
+        }
+
+        /// <summary>
+        /// Validates if a piece can be placed at the specified position
+        /// </summary>
+        private bool IsValidPiecePlacement(int row, int col, Piece piece)
+        {
+            // Перевіряємо що королі не поруч один з одним
+            if (piece.Type == "king")
+            {
+                // Шукаємо іншого короля
+                for (int r = 0; r < 8; r++)
+                {
+                    for (int c = 0; c < 8; c++)
+                    {
+                        var existingPiece = Board.FirstOrDefault(cell => cell.Row == r && cell.Col == c)?.Piece;
+                        if (existingPiece?.Type == "king" && existingPiece.Color != piece.Color)
+                        {
+                            // Перевіряємо чи не поруч
+                            int rowDiff = Math.Abs(row - r);
+                            int colDiff = Math.Abs(col - c);
+
+                            if (rowDiff <= 1 && colDiff <= 1)
+                            {
+                                MessageBox.Show(
+                                    "Kings cannot be placed next to each other!\n\nPlease choose a different position.",
+                                    "Invalid King Placement",
+                                    MessageBoxButton.OK,
+                                    MessageBoxImage.Warning);
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Перевіряємо що пішаки не на крайніх лініях (1-ша та 8-ма)
+            if (piece.Type == "pawn")
+            {
+                if ((piece.Color == "white" && row == 0) || (piece.Color == "black" && row == 7))
+                {
+                    string rankName = piece.Color == "white" ? "8th" : "1st";
+                    MessageBox.Show(
+                        $"Pawns cannot be placed on the {rankName} rank!\n\nPawns must be placed between the 2nd and 7th ranks.",
+                        "Invalid Pawn Placement",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return false;
+                }
+
+                if ((piece.Color == "black" && row == 0) || (piece.Color == "white" && row == 7))
+                {
+                    string rankName = piece.Color == "black" ? "8th" : "1st";
+                    MessageBox.Show(
+                        $"Pawns cannot be placed on the {rankName} rank!\n\nPawns must be placed between the 2nd and 7th ranks.",
+                        "Invalid Pawn Placement",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Validates if the current board position is legal
+        /// </summary>
+        private bool IsPositionValid(Piece?[,] boardSetup)
+        {
+            // Створюємо тимчасову дошку для перевірки
+            Board tempBoard = new Board(boardSetup);
+
+            // Перевіряємо чи не обидва королі під шахом одночасно (неможливо)
+            bool whiteInCheck = tempBoard.IsKingInCheck("white");
+            bool blackInCheck = tempBoard.IsKingInCheck("black");
+
+            if (whiteInCheck && blackInCheck)
+            {
+                MessageBox.Show(
+                    "Invalid position: Both kings cannot be in check simultaneously!\n\nPlease adjust the position.",
+                    "Invalid Position - Both Kings in Check",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
+
+            // Перевіряємо чи король кольору, який НЕ ходить, не під шахом
+            // (якщо білі ходять, то чорний король не може бути під шахом перед ходом)
+            if (blackInCheck) // Оскільки завжди починаємо з білих
+            {
+                MessageBox.Show(
+                    "Invalid position: Black king is in check, but it's White's turn to move!\n\nThis position is impossible in a real game.",
+                    "Invalid Position - Wrong King in Check",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -1757,7 +2070,13 @@ namespace ChessTrainer
                 if (TimerControlButton != null)
                     TimerControlButton.Content = "Resume Timers";
 
-                StatusTextBlock.Text = "Analysis mode. Click on pieces to see possible moves.";
+                // Виконуємо аналіз позиції
+                string analysisText = PerformPositionAnalysis();
+
+                // Показуємо результат аналізу
+                ShowAnalysisResults(analysisText);
+
+                StatusTextBlock.Text = "Analysis mode. Click on pieces to see possible moves. Check the analysis results window.";
             }
             else
             {
@@ -1765,9 +2084,167 @@ namespace ChessTrainer
                     button.Content = "Analyze Position";
 
                 UpdateStatusText();
-
                 ClearHighlights();
             }
+        }
+
+        /// <summary>
+        /// Performs position analysis and returns the results as text.
+        /// </summary>
+        private string PerformPositionAnalysis()
+        {
+            System.Text.StringBuilder analysis = new System.Text.StringBuilder();
+
+            analysis.AppendLine("=== POSITION ANALYSIS ===\n");
+
+            // Аналіз матеріалу
+            int whiteMaterial = 0, blackMaterial = 0;
+            int whitePawns = 0, blackPawns = 0;
+            int whiteMinorPieces = 0, blackMinorPieces = 0;
+            int whiteMajorPieces = 0, blackMajorPieces = 0;
+
+            for (int row = 0; row < 8; row++)
+            {
+                for (int col = 0; col < 8; col++)
+                {
+                    Piece? piece = _gameLogic.Board.GetPiece(row, col);
+                    if (piece != null)
+                    {
+                        int value = piece.GetValue();
+                        if (piece.Color == "white")
+                        {
+                            whiteMaterial += value;
+                            if (piece.Type == "pawn") whitePawns++;
+                            else if (piece.Type == "knight" || piece.Type == "bishop") whiteMinorPieces++;
+                            else if (piece.Type == "rook" || piece.Type == "queen") whiteMajorPieces++;
+                        }
+                        else
+                        {
+                            blackMaterial += value;
+                            if (piece.Type == "pawn") blackPawns++;
+                            else if (piece.Type == "knight" || piece.Type == "bishop") blackMinorPieces++;
+                            else if (piece.Type == "rook" || piece.Type == "queen") blackMajorPieces++;
+                        }
+                    }
+                }
+            }
+
+            analysis.AppendLine("MATERIAL BALANCE:");
+            analysis.AppendLine($"White: {whiteMaterial} points (Pawns: {whitePawns}, Minor: {whiteMinorPieces}, Major: {whiteMajorPieces})");
+            analysis.AppendLine($"Black: {blackMaterial} points (Pawns: {blackPawns}, Minor: {blackMinorPieces}, Major: {blackMajorPieces})");
+
+            int materialDiff = whiteMaterial - blackMaterial;
+            if (materialDiff > 0)
+                analysis.AppendLine($"White has a material advantage of {materialDiff} points.");
+            else if (materialDiff < 0)
+                analysis.AppendLine($"Black has a material advantage of {Math.Abs(materialDiff)} points.");
+            else
+                analysis.AppendLine("Material is equal.");
+
+            analysis.AppendLine();
+
+            // Аналіз позиційної оцінки
+            int positionScore = _gameLogic.Board.EvaluatePosition();
+            analysis.AppendLine("POSITIONAL EVALUATION:");
+            if (positionScore > 0)
+                analysis.AppendLine($"White has a positional advantage (+{positionScore})");
+            else if (positionScore < 0)
+                analysis.AppendLine($"Black has a positional advantage ({positionScore})");
+            else
+                analysis.AppendLine("Position is approximately equal (0)");
+
+            analysis.AppendLine();
+
+            // Перевірка на шах
+            bool whiteInCheck = _gameLogic.Board.IsKingInCheck("white");
+            bool blackInCheck = _gameLogic.Board.IsKingInCheck("black");
+
+            analysis.AppendLine("KING SAFETY:");
+            if (whiteInCheck)
+                analysis.AppendLine("⚠️ White king is in CHECK!");
+            if (blackInCheck)
+                analysis.AppendLine("⚠️ Black king is in CHECK!");
+            if (!whiteInCheck && !blackInCheck)
+                analysis.AppendLine("Both kings are safe.");
+
+            analysis.AppendLine();
+
+            // Аналіз можливих ходів
+            var whiteMoves = _gameLogic.Board.GetAllPossibleMovesForPlayer("white");
+            var blackMoves = _gameLogic.Board.GetAllPossibleMovesForPlayer("black");
+
+            analysis.AppendLine("MOBILITY:");
+            analysis.AppendLine($"White has {whiteMoves.Count} possible moves");
+            analysis.AppendLine($"Black has {blackMoves.Count} possible moves");
+
+            if (whiteMoves.Count == 0)
+            {
+                if (whiteInCheck)
+                    analysis.AppendLine("🏁 WHITE IS CHECKMATED!");
+                else
+                    analysis.AppendLine("🏁 WHITE IS STALEMATED!");
+            }
+
+            if (blackMoves.Count == 0)
+            {
+                if (blackInCheck)
+                    analysis.AppendLine("🏁 BLACK IS CHECKMATED!");
+                else
+                    analysis.AppendLine("🏁 BLACK IS STALEMATED!");
+            }
+
+            analysis.AppendLine();
+
+            // Перевірка на недостатність матеріалу
+            GameEndType endType = _gameLogic.Board.CheckForGameEnd(_currentPlayer);
+            if (endType == GameEndType.InsufficientMaterial)
+            {
+                analysis.AppendLine("GAME STATUS:");
+                analysis.AppendLine("🏁 Insufficient material for checkmate - Draw!");
+            }
+
+            analysis.AppendLine();
+            analysis.AppendLine("=== END OF ANALYSIS ===");
+
+            return analysis.ToString();
+        }
+
+        /// <summary>
+        /// Shows analysis results in a separate window.
+        /// </summary>
+        private void ShowAnalysisResults(string analysisText)
+        {
+            Window analysisWindow = new Window
+            {
+                Title = "Position Analysis Results",
+                Width = 500,
+                Height = 600,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                ResizeMode = ResizeMode.CanResize
+            };
+
+            ScrollViewer scrollViewer = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Margin = new Thickness(10)
+            };
+
+            TextBlock analysisTextBlock = new TextBlock
+            {
+                Text = analysisText,
+                FontFamily = new FontFamily("Consolas, Courier New, monospace"),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(10),
+                Background = Brushes.White,
+                Foreground = Brushes.Black
+            };
+
+            scrollViewer.Content = analysisTextBlock;
+            analysisWindow.Content = scrollViewer;
+
+            analysisWindow.Show();
         }
 
         #endregion
@@ -2142,13 +2619,26 @@ namespace ChessTrainer
         private void SaveCurrentSetupToGameLogic()
         {
             Piece?[,] boardSetup = new Piece?[8, 8];
+            bool hasAnyPieces = false;
 
             foreach (var cell in Board)
             {
                 if (cell.Piece != null)
                 {
                     boardSetup[cell.Row, cell.Col] = cell.Piece.Clone();
+                    hasAnyPieces = true;
                 }
+            }
+
+            // Перевіряємо чи є взагалі фігури на дошці
+            if (!hasAnyPieces)
+            {
+                MessageBox.Show(
+                    "The board is empty! Please place some pieces or start a new standard game instead.\n\nCannot exit setup mode with an empty board.",
+                    "Empty Board - Cannot Exit Setup",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return; // НЕ виходимо з setup mode
             }
 
             bool whiteKingPresent = false;
@@ -2170,13 +2660,17 @@ namespace ChessTrainer
 
             if (!whiteKingPresent || !blackKingPresent)
             {
-                MessageBox.Show("Both white and black kings must be present on the board.",
-                               "Invalid Position",
+                MessageBox.Show("Both white and black kings must be present on the board to exit setup mode.",
+                               "Invalid Position - Missing Kings",
                                MessageBoxButton.OK,
                                MessageBoxImage.Warning);
+                return; // НЕ виходимо з setup mode
+            }
 
-                UpdateBoardUI();
-                return;
+            // Перевіряємо чи позиція валідна (королі не під ударом одразу)
+            if (!IsPositionValid(boardSetup))
+            {
+                return; // Повідомлення вже показане в IsPositionValid
             }
 
             _gameLogic.LoadGame(boardSetup, "white");
@@ -2185,13 +2679,13 @@ namespace ChessTrainer
             Board = _gameLogic.GetCurrentBoard();
             ClearMoveHistory();
 
-            MessageBoxResult result = MessageBox.Show(
-                "Would you like to play against the computer with this position?",
+            MessageBoxResult gameResult = MessageBox.Show(
+                "Position setup complete. Would you like to play against the computer with this position?",
                 "Game Mode Selection",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
-            if (result == MessageBoxResult.Yes)
+            if (gameResult == MessageBoxResult.Yes)
             {
                 ShowComputerModeDialog();
             }
@@ -2204,6 +2698,8 @@ namespace ChessTrainer
                 if (DifficultyComboBox != null)
                     DifficultyComboBox.Visibility = Visibility.Collapsed;
             }
+
+            _isGameActive = true; // Тепер активуємо гру
         }
 
         /// <summary>
@@ -2378,22 +2874,22 @@ namespace ChessTrainer
         {
             if (_isSetupPositionMode)
             {
-                _gameLogic.ClearBoard();
-                UpdateBoardUI();
-                ClearMoveHistory();
-                _currentPlayer = "white";
-                UpdateStatusText();
+                if (ShowConfirmation("Are you sure you want to clear the board? This will remove all pieces."))
+                {
+                    _gameLogic.ClearBoard();
+                    UpdateBoardUI();
+                    ClearMoveHistory();
+                    _currentPlayer = "white";
 
-                RefreshSetupPanelDisplay();
+                    RefreshSetupPanelDisplay();
 
-                ResetTimers();
-                _isTimersPaused = false;
-                if (TimerControlButton != null)
-                    TimerControlButton.Content = "Pause Timers";
-                StartTimers();
+                    // В setup mode залишаємо все як є, але деактивуємо гру
+                    _isGameActive = false;
+                    ClearHighlights();
 
-                _isGameActive = true;
-                ClearHighlights();
+                    if (StatusTextBlock != null)
+                        StatusTextBlock.Text = "Setup mode. Board cleared. Select pieces to place on the board.";
+                }
             }
             else
             {
@@ -2403,20 +2899,39 @@ namespace ChessTrainer
                     UpdateBoardUI();
                     ClearMoveHistory();
                     _currentPlayer = "white";
-                    UpdateStatusText();
 
-                    ResetTimers();
-                    _isTimersPaused = false;
+                    // Деактивуємо гру після очищення
+                    _isGameActive = false;
+                    StopTimers();
+                    _isTimersPaused = true;
                     if (TimerControlButton != null)
-                        TimerControlButton.Content = "Pause Timers";
-                    StartTimers();
+                        TimerControlButton.Content = "Resume Timers";
 
-                    _isGameActive = true;
+                    UpdateStatusText();
                     ClearHighlights();
+
+                    // Пропонуємо почати нову гру
+                    MessageBoxResult result = MessageBox.Show(
+                        "Board cleared. Would you like to start a new game?",
+                        "Start New Game?",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        _gameLogic.InitializeGame();
+                        UpdateBoardUI();
+                        ResetTimers();
+                        _isTimersPaused = false;
+                        if (TimerControlButton != null)
+                            TimerControlButton.Content = "Pause Timers";
+                        StartTimers();
+                        _isGameActive = true;
+                        UpdateStatusText();
+                    }
                 }
             }
         }
-
         /// <summary>
         /// Handles the two players mode button click.
         /// </summary>
