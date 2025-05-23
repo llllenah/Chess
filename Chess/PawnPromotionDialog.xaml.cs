@@ -28,15 +28,12 @@ namespace ChessTrainer
         {
             InitializeComponent();
             PawnColor = pawnColor;
-            SelectedPieceType = "queen"; // Default to queen
+            SelectedPieceType = "queen";
 
-            // Set title based on pawn color
             Title = $"{(pawnColor == "white" ? "White" : "Black")} pawn has reached the last rank";
 
-            // Initialize promotion options
             InitializePromotionOptions();
 
-            // Set window dimensions
             Width = 600;
             Height = 500;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -47,10 +44,8 @@ namespace ChessTrainer
         /// </summary>
         private void InitializePromotionOptions()
         {
-            // Create a font for chess pieces
             FontFamily chessFontFamily = new FontFamily("Segoe UI Symbol");
 
-            // Create a panel to hold the options
             WrapPanel optionsPanel = new WrapPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -58,13 +53,11 @@ namespace ChessTrainer
                 Margin = new Thickness(10)
             };
 
-            // Add options for each piece type
             AddPieceOption(optionsPanel, "queen", chessFontFamily);
             AddPieceOption(optionsPanel, "rook", chessFontFamily);
             AddPieceOption(optionsPanel, "bishop", chessFontFamily);
             AddPieceOption(optionsPanel, "knight", chessFontFamily);
 
-            // Add options panel to the window
             Content = new Grid
             {
                 Children =
@@ -81,7 +74,6 @@ namespace ChessTrainer
                 }
             };
 
-            // Add OK and Cancel button
             StackPanel buttonPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -112,10 +104,8 @@ namespace ChessTrainer
             buttonPanel.Children.Add(okButton);
             buttonPanel.Children.Add(cancelButton);
 
-            // Add the button panel
             ((Grid)Content).Children.Add(buttonPanel);
 
-            // Set the grid rows
             ((Grid)Content).RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             ((Grid)Content).RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             ((Grid)Content).RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -133,13 +123,10 @@ namespace ChessTrainer
         /// <param name="fontFamily">The font family for the piece icon</param>
         private void AddPieceOption(WrapPanel panel, string pieceType, FontFamily fontFamily)
         {
-            // Create a piece
             Piece piece = new Piece(PawnColor, pieceType);
 
-            // Get piece name in English
             string pieceName = GetPieceLocalizedName(pieceType);
 
-            // Create a border to hold the piece and its name
             Border container = new Border
             {
                 BorderBrush = pieceType == "queen" ? Brushes.Green : Brushes.Transparent,
@@ -150,25 +137,22 @@ namespace ChessTrainer
                 Background = new SolidColorBrush(Color.FromArgb(20, 0, 100, 0))
             };
 
-            // Create a radio button for the option
             RadioButton option = new RadioButton
             {
                 Tag = pieceType,
                 GroupName = "PromotionOptions",
-                IsChecked = pieceType == "queen", // Default to queen
+                IsChecked = pieceType == "queen",
                 VerticalContentAlignment = VerticalAlignment.Center,
                 HorizontalContentAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(5)
             };
 
-            // Create a content panel for the radio button
             StackPanel contentPanel = new StackPanel
             {
                 Orientation = Orientation.Vertical,
                 HorizontalAlignment = HorizontalAlignment.Center
             };
 
-            // Create the piece icon
             TextBlock pieceIcon = new TextBlock
             {
                 Text = piece.GetUnicodeSymbol(),
@@ -178,7 +162,6 @@ namespace ChessTrainer
                 HorizontalAlignment = HorizontalAlignment.Center
             };
 
-            // Create the piece name
             TextBlock pieceNameText = new TextBlock
             {
                 Text = pieceName,
@@ -187,16 +170,13 @@ namespace ChessTrainer
                 Margin = new Thickness(0, 5, 0, 0)
             };
 
-            // Assemble the UI
             contentPanel.Children.Add(pieceIcon);
             contentPanel.Children.Add(pieceNameText);
             option.Content = contentPanel;
             container.Child = option;
 
-            // Handle selection change
             option.Checked += Option_Checked;
 
-            // Add to the panel
             panel.Children.Add(container);
         }
 
@@ -224,7 +204,6 @@ namespace ChessTrainer
             {
                 SelectedPieceType = pieceType;
 
-                // Update visual selection indicator
                 foreach (var child in ((WrapPanel)((Grid)Content).Children[1]).Children)
                 {
                     if (child is Border border)

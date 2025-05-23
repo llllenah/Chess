@@ -21,26 +21,21 @@ namespace ChessTrainer
         /// <returns>Converted value based on mode</returns>
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
-            // Better input validation with defensive programming
             if (values is null || values.Length < 2)
             {
                 return DependencyProperty.UnsetValue;
             }
 
-            // Check for DependencyProperty.UnsetValue
             if (values[0] == DependencyProperty.UnsetValue || values[1] == DependencyProperty.UnsetValue)
             {
                 return DependencyProperty.UnsetValue;
             }
 
-            // Safer type casting with pattern matching
             if (values[0] is string pieceColor && values[1] is string pieceType && parameter is string mode)
             {
-                // Normalize inputs to lowercase for consistency
                 pieceColor = pieceColor.ToLower();
                 pieceType = pieceType.ToLower();
 
-                // Convert based on mode parameter
                 return mode switch
                 {
                     "fill" => Brushes.Black,

@@ -24,8 +24,8 @@ namespace ChessTrainer
         /// <param name="type">The type of the piece ("pawn", "knight", "bishop", "rook", "queen", or "king").</param>
         public Piece(string color, string type)
         {
-            Color = color.ToLower(); // Ensure "white" or "black"
-            Type = type.ToLower();   // Ensure lowercase type name
+            Color = color.ToLower();
+            Type = type.ToLower();
         }
 
         /// <summary>

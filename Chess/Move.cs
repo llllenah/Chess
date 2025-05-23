@@ -126,30 +126,4 @@ namespace ChessTrainer
         Castling
     }
 
-    ///// <summary>
-    ///// Possible end states for a chess game.
-    ///// </summary>
-    //public enum GameEndType
-    //{
-    //    /// <summary>Game is not over.</summary>
-    //    None,
-
-    //    /// <summary>Game ended by checkmate.</summary>
-    //    Checkmate,
-
-    //    /// <summary>Game ended by stalemate.</summary>
-    //    Stalemate,
-
-    //    /// <summary>Game ended by king capture.</summary>
-    //    KingCaptured,
-
-    //    /// <summary>Game ended in a draw by rule.</summary>
-    //    Draw,
-
-    //    /// <summary>Game ended by resignation.</summary>
-    //    Resignation,
-
-    //    /// <summary>Game ended due to insufficient material for checkmate.</summary>
-    //    InsufficientMaterial
-    //}
 }

@@ -126,7 +126,6 @@ namespace ChessTrainer
             _board = new Board();
             InitializeGame();
 
-            // Default promotion to queen if no handler is set
             _showPromotionDialog = (color) => "queen";
         }
 
@@ -149,12 +148,11 @@ namespace ChessTrainer
         public void InitializeGame()
         {
             _board.InitializeBoard();
-            _currentPlayer = "white"; // Chess always starts with white
+            _currentPlayer = "white";
             _halfMovesSinceCaptureOrPawn = 0;
 
             OnBoardUpdated();
 
-            // If computer plays white, make first move
             if (_isComputerMode && _playerPlaysBlack && _currentPlayer == "white")
             {
                 MakeComputerMove();
@@ -187,13 +185,11 @@ namespace ChessTrainer
             {
                 for (int col = 0; col < 8; col++)
                 {
-                    // Handle board orientation based on player color
                     int displayRow = row;
                     int displayCol = col;
 
                     Piece? piece = _board.GetPiece(row, col);
 
-                    // Create a board cell with appropriate color
                     boardCells.Add(new BoardCell(
                         row,
                         col,
@@ -221,9 +217,8 @@ namespace ChessTrainer
         public bool IsPlayerTurn()
         {
             if (!_isComputerMode)
-                return true; // In two-player mode, always allow moves
+                return true;
 
-            // In computer mode, check if current player matches human player's color
             bool isPlayerTurn = (_playerPlaysBlack && _currentPlayer == "black") ||
                                (!_playerPlaysBlack && _currentPlayer == "white");
 
@@ -253,23 +248,18 @@ namespace ChessTrainer
         /// <returns>True if the move was valid and executed</returns>
         public bool TryMovePiece(int startRow, int startCol, int endRow, int endCol)
         {
-            // Check whose turn it is in computer mode
             if (!IsPlayerTurn())
                 return false;
 
-            // Check that it's the current player's piece
             Piece? piece = _board.GetPiece(startRow, startCol);
             if (piece == null || piece.Color != _currentPlayer)
                 return false;
 
-            // Validate and execute the move
             if (_board.IsValidMove(startRow, startCol, endRow, endCol, _currentPlayer))
             {
-                // Get the moved and captured pieces
                 Piece? movedPiece = _board.GetPiece(startRow, startCol);
                 Piece? capturedPiece = _board.GetPiece(endRow, endCol);
 
-                // Update 50-move rule counter
                 bool isPawnMove = movedPiece?.Type == "pawn";
                 bool isCapture = capturedPiece != null;
 
@@ -282,20 +272,16 @@ namespace ChessTrainer
                     _halfMovesSinceCaptureOrPawn++;
                 }
 
-                // Execute the move
                 _board.MovePiece(startRow, startCol, endRow, endCol);
 
-                // Create move notation
                 string moveNotation = GetMoveNotation(movedPiece, startRow, startCol, endRow, endCol, capturedPiece);
 
-                // Handle pawn promotion
                 bool wasPromoted = false;
                 if (IsPawnPromotion(endRow, endCol))
                 {
                     wasPromoted = HandlePawnPromotion(endRow, endCol);
                     if (!wasPromoted)
                     {
-                        // Undo the move if promotion was cancelled
                         _board.MovePiece(endRow, endCol, startRow, startCol);
                         if (capturedPiece != null)
                         {
@@ -305,48 +291,38 @@ namespace ChessTrainer
                     }
                 }
 
-                // Notify about the move
                 OnMoveMade(new MoveEventArgs(startRow, startCol, endRow, endCol, moveNotation));
 
-                // Check if a king was captured
                 if (capturedPiece?.Type == "king")
                 {
                     OnGameEnded(new GameEndEventArgs(GameEndType.KingCaptured, _currentPlayer));
                     return true;
                 }
 
-                // Check for 50-move rule
-                if (_halfMovesSinceCaptureOrPawn >= 100) // 50 full moves = 100 half-moves
+                if (_halfMovesSinceCaptureOrPawn >= 100) 
                 {
                     OnGameEnded(new GameEndEventArgs(GameEndType.Draw, ""));
                     return true;
                 }
 
-                // Switch players
                 SwitchPlayer();
 
-                // Check for checkmate or stalemate
                 GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
                 if (endType != GameEndType.None)
                 {
-                    // The winner is the player who just moved
                     string winner = _currentPlayer == "white" ? "black" : "white";
                     OnGameEnded(new GameEndEventArgs(endType, winner));
                     return true;
                 }
 
-                // Update the board
                 OnBoardUpdated();
 
-                // Make computer move if applicable
                 if (_isComputerMode && !IsPlayerTurn())
                 {
                     Task.Run(() =>
                     {
-                        // Small delay for better user experience
                         System.Threading.Thread.Sleep(500);
 
-                        // Make the computer move
                         Application.Current.Dispatcher.Invoke(() =>
                         {
                             MakeComputerMove();
@@ -387,10 +363,8 @@ namespace ChessTrainer
 
             if (pawn?.Type == "pawn")
             {
-                // Get pawn color
                 string pawnColor = pawn.Color;
 
-                // For computer, automatically promote to queen
                 if (_isComputerMode && !IsPlayerTurn())
                 {
                     _board.SetPiece(row, col, new Piece(pawnColor, "queen"));
@@ -398,20 +372,16 @@ namespace ChessTrainer
                     return true;
                 }
 
-                // Raise the event for UI to show promotion dialog
                 var args = new PawnPromotionEventArgs(row, col, pawnColor);
                 OnPawnPromotion(args);
 
-                // If user cancelled promotion, return false
                 if (args.IsCancelled)
                     return false;
 
-                // Get piece type from dialog or default
                 string pieceType = string.IsNullOrEmpty(args.PromotionPiece)
                     ? _showPromotionDialog(pawnColor)
                     : args.PromotionPiece;
 
-                // Set the new piece
                 _board.SetPiece(row, col, new Piece(pawnColor, pieceType));
                 OnBoardUpdated();
                 return true;
@@ -442,7 +412,6 @@ namespace ChessTrainer
         {
             if (piece == null) return "";
 
-            // Handle castling
             if (piece.Type == "king" && Math.Abs(endCol - startCol) == 2)
             {
                 return endCol > startCol ? "O-O" : "O-O-O";
@@ -463,13 +432,11 @@ namespace ChessTrainer
             string startSquare = $"{(char)('a' + startCol)}{8 - startRow}";
             string endSquare = $"{(char)('a' + endCol)}{8 - endRow}";
 
-            // Special case for pawn captures
             if (piece.Type == "pawn" && capture != "")
             {
                 return $"{(char)('a' + startCol)}{capture}{endSquare}";
             }
 
-            // Check for ambiguity (when two pieces of same type can move to same square)
             bool needsFile = false;
             bool needsRank = false;
 
@@ -479,20 +446,17 @@ namespace ChessTrainer
                 {
                     for (int col = 0; col < 8; col++)
                     {
-                        // Skip the piece we're moving
                         if (row == startRow && col == startCol)
                             continue;
 
                         Piece? otherPiece = _board.GetPiece(row, col);
 
-                        // Check if there's another piece of same type and color that can move to target
                         if (otherPiece?.Type == piece.Type &&
                             otherPiece.Color == piece.Color &&
                             _board.IsValidMove(row, col, endRow, endCol, piece.Color))
                         {
                             needsFile = true;
 
-                            // If pieces are on same file, we need rank too
                             if (col == startCol)
                                 needsRank = true;
                         }
@@ -500,7 +464,6 @@ namespace ChessTrainer
                 }
             }
 
-            // Build the notation
             string qualifier = "";
             if (needsFile)
                 qualifier += (char)('a' + startCol);
@@ -509,16 +472,13 @@ namespace ChessTrainer
 
             string notation = $"{pieceSymbol}{qualifier}{capture}{endSquare}";
 
-            // Check for check or checkmate
             string opponentColor = piece.Color == "white" ? "black" : "white";
 
-            // Create a temporary board to test check status after move
             Board tempBoard = new Board(_board.GetPieces());
             tempBoard.MovePiece(startRow, startCol, endRow, endCol);
 
             if (tempBoard.IsKingInCheck(opponentColor))
             {
-                // Check if it's checkmate
                 GameEndType endType = tempBoard.CheckForGameEnd(opponentColor);
                 if (endType == GameEndType.Checkmate)
                     notation += "#";
@@ -534,28 +494,22 @@ namespace ChessTrainer
         /// </summary>
         public void MakeComputerMove()
         {
-            // Determine computer's color
             string computerColor = _playerPlaysBlack ? "white" : "black";
 
-            // Check if it's actually the computer's turn
             if (_currentPlayer != computerColor)
                 return;
 
-            // Get all possible moves
             var possibleMoves = _board.GetAllPossibleMovesForPlayer(computerColor);
 
             if (possibleMoves.Count > 0)
             {
-                // Choose the best move based on difficulty
                 Move? selectedMove = GetBestMove(possibleMoves, (int)CurrentDifficulty, computerColor == "white");
 
                 if (selectedMove != null)
                 {
-                    // Execute the move
                     Piece? movedPiece = _board.GetPiece(selectedMove.StartRow, selectedMove.StartCol);
                     Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
 
-                    // Update 50-move rule counter
                     bool isPawnMove = movedPiece?.Type == "pawn";
                     bool isCapture = capturedPiece != null;
 
@@ -570,7 +524,6 @@ namespace ChessTrainer
 
                     _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
 
-                    // Handle pawn promotion (computer always promotes to queen)
                     if (IsPawnPromotion(selectedMove.EndRow, selectedMove.EndCol))
                     {
                         Piece? pawn = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
@@ -580,7 +533,6 @@ namespace ChessTrainer
                         }
                     }
 
-                    // Create move notation
                     string moveNotation = GetMoveNotation(
                         movedPiece,
                         selectedMove.StartRow,
@@ -590,7 +542,6 @@ namespace ChessTrainer
                         capturedPiece
                     );
 
-                    // Notify about the move
                     OnMoveMade(new MoveEventArgs(
                         selectedMove.StartRow,
                         selectedMove.StartCol,
@@ -599,24 +550,20 @@ namespace ChessTrainer
                         moveNotation
                     ));
 
-                    // Check if a king was captured
                     if (capturedPiece?.Type == "king")
                     {
                         OnGameEnded(new GameEndEventArgs(GameEndType.KingCaptured, computerColor));
                         return;
                     }
 
-                    // Check for 50-move rule
-                    if (_halfMovesSinceCaptureOrPawn >= 100) // 50 full moves = 100 half-moves
+                    if (_halfMovesSinceCaptureOrPawn >= 100)
                     {
                         OnGameEnded(new GameEndEventArgs(GameEndType.Draw, ""));
                         return;
                     }
 
-                    // IMPORTANT: Switch players immediately after the computer's move
                     SwitchPlayer();
 
-                    // Check for checkmate or stalemate
                     GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
                     if (endType != GameEndType.None)
                     {
@@ -625,7 +572,6 @@ namespace ChessTrainer
                         return;
                     }
 
-                    // Update the board
                     OnBoardUpdated();
                 }
             }
@@ -643,30 +589,24 @@ namespace ChessTrainer
         /// <returns>The best move</returns>
         public Move? GetBestMove(List<Move> possibleMoves, int difficulty, bool maximizingPlayer)
         {
-            // If no moves are available
             if (possibleMoves.Count == 0)
                 return null;
 
-            // For Random difficulty, just return a random move
             if (difficulty <= 1)
             {
                 return possibleMoves[_random.Next(possibleMoves.Count)];
             }
 
-            // Determine search depth based on difficulty
             int depth = difficulty;
 
-            // For higher difficulties, use alpha-beta pruning with parallelization
             if (difficulty >= 4)
             {
                 return GetBestMoveParallel(possibleMoves, depth, maximizingPlayer);
             }
-            // For medium difficulty, use regular alpha-beta
             else if (difficulty >= 2)
             {
                 return GetBestMoveAlphaBeta(possibleMoves, depth, maximizingPlayer);
             }
-            // Fallback to minimax
             else
             {
                 return GetBestMoveMinimax(possibleMoves, depth, maximizingPlayer);
@@ -690,11 +630,9 @@ namespace ChessTrainer
 
             foreach (var move in possibleMoves)
             {
-                // Create a temporary board to test the move
                 Board tempBoard = new Board(_board.GetPieces());
                 tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
 
-                // Calculate score recursively
                 int score;
 
                 if (depth == 1)
@@ -720,7 +658,6 @@ namespace ChessTrainer
 
                 move.Score = score;
 
-                // Update best move
                 if (maximizingPlayer)
                 {
                     if (score > bestScore)
@@ -761,11 +698,9 @@ namespace ChessTrainer
 
             foreach (var move in possibleMoves)
             {
-                // Create a temporary board to test the move
                 Board tempBoard = new Board(_board.GetPieces());
                 tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
 
-                // Calculate score recursively
                 int score;
 
                 if (depth == 1)
@@ -791,7 +726,6 @@ namespace ChessTrainer
 
                 move.Score = score;
 
-                // Update best move and alpha/beta values
                 if (maximizingPlayer)
                 {
                     if (score > alpha)
@@ -801,7 +735,7 @@ namespace ChessTrainer
                     }
 
                     if (beta <= alpha)
-                        break; // Beta cutoff
+                        break;
                 }
                 else
                 {
@@ -812,7 +746,7 @@ namespace ChessTrainer
                     }
 
                     if (beta <= alpha)
-                        break; // Alpha cutoff
+                        break;
                 }
             }
 
@@ -831,19 +765,15 @@ namespace ChessTrainer
             if (possibleMoves.Count == 0 || depth == 0)
                 return null;
 
-            // Evaluate all top-level moves in parallel
             List<Move> evaluatedMoves = new List<Move>();
 
             Parallel.ForEach(possibleMoves, move =>
             {
-                // Create a clone of the move to avoid race conditions
                 Move evaluatedMove = move.Clone();
 
-                // Create a temporary board to test the move
                 Board tempBoard = new Board(_board.GetPieces());
                 tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
 
-                // Calculate score recursively (non-parallel for deeper levels)
                 int score;
 
                 if (depth == 1)
@@ -855,7 +785,6 @@ namespace ChessTrainer
                     string nextPlayerColor = maximizingPlayer ? "black" : "white";
                     var nextMoves = tempBoard.GetAllPossibleMovesForPlayer(nextPlayerColor);
 
-                    // Use regular alpha-beta for deeper levels
                     var result = GetBestMoveAlphaBeta(nextMoves, depth - 1, !maximizingPlayer);
 
                     if (result == null)
@@ -876,7 +805,6 @@ namespace ChessTrainer
                 }
             });
 
-            // Select the best move
             if (evaluatedMoves.Count == 0)
                 return possibleMoves.FirstOrDefault();
 
