@@ -73,16 +73,6 @@ namespace ChessTrainer
             { "pawn", 8 }
         };
 
-        private readonly Dictionary<string, int> _maxPieceCounts = new Dictionary<string, int>
-        {
-            { "king", 1 },
-            { "queen", 9 },
-            { "rook", 10 },
-            { "bishop", 10 },
-            { "knight", 10 },
-            { "pawn", 8 }
-        };
-
         #endregion
 
         #region Properties
@@ -833,15 +823,6 @@ namespace ChessTrainer
         /// </summary>
         private void SetupPosition_Click(object sender, RoutedEventArgs e)
         {
-            if (_isComputerMode && !_isSetupPositionMode)
-            {
-                MessageBox.Show("Position setup is only available in two-player mode. Please switch to two-player mode first.",
-                                "Setup Mode Not Available",
-                                MessageBoxButton.OK,
-                                MessageBoxImage.Information);
-                return;
-            }
-
             if (!_isSetupPositionMode)
             {
                 _isSetupPositionMode = true;
@@ -881,23 +862,6 @@ namespace ChessTrainer
 
                 ExitSetupMode(sender);
             }
-        }
-
-        /// <summary>
-        /// Gets user-friendly message for draw types
-        /// </summary>
-        /// <param name="endType">The type of game end</param>
-        /// <returns>Descriptive message about the draw</returns>
-        private string GetDrawMessage(GameEndType endType)
-        {
-            return endType switch
-            {
-                GameEndType.Stalemate => "Stalemate: The current player has no legal moves but is not in check.",
-                GameEndType.InsufficientMaterial => "Insufficient material: Neither side has enough pieces to deliver checkmate.",
-                GameEndType.Checkmate => "Checkmate: The current player's king is in check and has no legal moves.",
-                GameEndType.Draw => "Draw by rule (50-move rule or other draw condition).",
-                _ => "The game has ended."
-            };
         }
 
         /// <summary>
@@ -1261,16 +1225,21 @@ namespace ChessTrainer
         {
             try
             {
-                bool whiteActive = _currentPlayer == "white" && !_isTimersPaused && _isGameActive;
-                bool blackActive = _currentPlayer == "black" && !_isTimersPaused && _isGameActive;
-
                 bool showWhiteTimer = true;
                 bool showBlackTimer = true;
-
+                _playerPlaysBlack = _playerColor != ChessColor.White;
                 if (_isComputerMode)
                 {
-                    showWhiteTimer = !_playerPlaysBlack;
-                    showBlackTimer = _playerPlaysBlack;
+                    if (_playerPlaysBlack)
+                    {
+                        showWhiteTimer = false;
+                        showBlackTimer = true;
+                    }
+                    else
+                    {
+                        showWhiteTimer = true;
+                        showBlackTimer = false;
+                    }
                 }
 
                 if (WhiteTimerBorder != null)
@@ -1279,27 +1248,49 @@ namespace ChessTrainer
                 if (BlackTimerBorder != null)
                     BlackTimerBorder.Visibility = showBlackTimer ? Visibility.Visible : Visibility.Collapsed;
 
+                bool whiteTimerShouldTick = false;
+                bool blackTimerShouldTick = false;
+
+                if (_isGameActive && !_isTimersPaused)
+                {
+                    if (_isComputerMode)
+                    {
+                        if (_playerPlaysBlack && _currentPlayer == "black")
+                        {
+                            blackTimerShouldTick = true;
+                        }
+                        else if (!_playerPlaysBlack && _currentPlayer == "white")
+                        {
+                            whiteTimerShouldTick = true;
+                        }
+                    }
+                    else
+                    {
+                        whiteTimerShouldTick = _currentPlayer == "white";
+                        blackTimerShouldTick = _currentPlayer == "black";
+                    }
+                }
+
                 if (WhiteActiveIndicator != null)
-                    WhiteActiveIndicator.Visibility = (whiteActive && showWhiteTimer) ? Visibility.Visible : Visibility.Collapsed;
+                    WhiteActiveIndicator.Visibility = (whiteTimerShouldTick && showWhiteTimer) ? Visibility.Visible : Visibility.Collapsed;
 
                 if (BlackActiveIndicator != null)
-                    BlackActiveIndicator.Visibility = (blackActive && showBlackTimer) ? Visibility.Visible : Visibility.Collapsed;
+                    BlackActiveIndicator.Visibility = (blackTimerShouldTick && showBlackTimer) ? Visibility.Visible : Visibility.Collapsed;
 
-                if (WhiteTimerBorder != null && BlackTimerBorder != null)
-                {
-                    var defaultBorderBrush = new SolidColorBrush(Color.FromRgb(189, 189, 189));
-                    var activeBorderBrush = new SolidColorBrush(Colors.Green);
+                var defaultBorderBrush = new SolidColorBrush(Color.FromRgb(189, 189, 189));
+                var activeBorderBrush = new SolidColorBrush(Colors.Green);
 
-                    if (showWhiteTimer)
-                        WhiteTimerBorder.BorderBrush = whiteActive ? activeBorderBrush : defaultBorderBrush;
-                    if (showBlackTimer)
-                        BlackTimerBorder.BorderBrush = blackActive ? activeBorderBrush : defaultBorderBrush;
-                }
+                if (WhiteTimerBorder != null && showWhiteTimer)
+                    WhiteTimerBorder.BorderBrush = whiteTimerShouldTick ? activeBorderBrush : defaultBorderBrush;
+
+                if (BlackTimerBorder != null && showBlackTimer)
+                    BlackTimerBorder.BorderBrush = blackTimerShouldTick ? activeBorderBrush : defaultBorderBrush;
             }
             catch
             {
             }
         }
+
         /// <summary>
         /// Updates timer visibility based on game mode
         /// </summary>
@@ -1307,17 +1298,25 @@ namespace ChessTrainer
         {
             if (_isComputerMode)
             {
-                if (WhiteTimerBorder != null)
-                    WhiteTimerBorder.Visibility = !_playerPlaysBlack ? Visibility.Visible : Visibility.Collapsed;
-
-                if (BlackTimerBorder != null)
-                    BlackTimerBorder.Visibility = _playerPlaysBlack ? Visibility.Visible : Visibility.Collapsed;
+                if (_playerColor != ChessColor.White)
+                {
+                    if (WhiteTimerBorder != null)
+                        WhiteTimerBorder.Visibility = Visibility.Collapsed;
+                    if (BlackTimerBorder != null)
+                        BlackTimerBorder.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    if (WhiteTimerBorder != null)
+                        WhiteTimerBorder.Visibility = Visibility.Visible;
+                    if (BlackTimerBorder != null)
+                        BlackTimerBorder.Visibility = Visibility.Collapsed;
+                }
             }
             else
             {
                 if (WhiteTimerBorder != null)
                     WhiteTimerBorder.Visibility = Visibility.Visible;
-
                 if (BlackTimerBorder != null)
                     BlackTimerBorder.Visibility = Visibility.Visible;
             }
@@ -1559,6 +1558,10 @@ namespace ChessTrainer
         /// Places a piece on the board during setup mode.
         /// </summary>
         /// <param name="clickedCell">The cell to place the piece on.</param>
+        /// <summary>
+        /// Places a piece on the board during setup mode.
+        /// </summary>
+        /// <param name="clickedCell">The cell to place the piece on.</param>
         private void PlacePieceInSetupMode(BoardCell clickedCell)
         {
             if (_selectedPieceForPlacement == null)
@@ -1575,27 +1578,37 @@ namespace ChessTrainer
             }
 
             bool isReplacement = clickedCell.Piece != null;
-
-            int totalPiecesOfColor = GetTotalPiecesForColor(pieceColor);
-            if (!isReplacement && totalPiecesOfColor >= 16)
-            {
-                string localizedColor = pieceColor == "white" ? "White" : "Black";
-                MessageBox.Show($"Cannot place more pieces! {localizedColor} already has the maximum of 16 pieces on the board.\n\n" +
-                               $"Current {localizedColor.ToLower()} pieces: {totalPiecesOfColor}/16\n\n" +
-                               $"To place more pieces, you need to remove some existing {localizedColor.ToLower()} pieces first.",
-                                "Maximum Total Pieces Reached",
-                                MessageBoxButton.OK,
-                                MessageBoxImage.Information);
-                return;
-            }
+            bool isSameTypeReplacement = isReplacement &&
+                                        clickedCell.Piece != null &&
+                                        clickedCell.Piece.Type == pieceType &&
+                                        clickedCell.Piece.Color == pieceColor;
 
             int currentCount = Board.Count(c => c.Piece != null &&
                                            c.Piece.Type == pieceType &&
                                            c.Piece.Color == pieceColor);
 
-            int maxCount = GetMaxPieceCountForColor(pieceColor, pieceType);
+            int effectiveCurrentCount = currentCount;
+            if (isReplacement && clickedCell.Piece != null && clickedCell.Piece.Color == pieceColor)
+            {
+                if (clickedCell.Piece.Type == pieceType)
+                {
+                    effectiveCurrentCount = currentCount;
+                }
+                else
+                {
+                    effectiveCurrentCount = currentCount;
+                }
+            }
 
-            if (!isReplacement && currentCount >= maxCount)
+            int maxCount = GetMaxPieceCountForColorWithReplacement(pieceColor, pieceType,
+                                                                  isReplacement ? clickedCell.Piece : null);
+
+            int totalPiecesOfColor = GetTotalPiecesForColor(pieceColor);
+
+            bool willIncreaseCount = !isReplacement ||
+                                    (clickedCell.Piece != null && clickedCell.Piece.Color != pieceColor);
+            
+            if (!isSameTypeReplacement && effectiveCurrentCount >= maxCount)
             {
                 string localizedType = GetPieceTypeName(pieceType);
                 string localizedColor = pieceColor == "white" ? "White" : "Black";
@@ -1618,39 +1631,65 @@ namespace ChessTrainer
                 {
                     int currentPawns = Board.Count(c => c.Piece != null && c.Piece.Type == "pawn" && c.Piece.Color == pieceColor);
                     int standardCount = GetStandardPieceCount(pieceType);
-                    int missingPawns = Math.Max(0, 8 - currentPawns);
+                    int availablePromotions = GetAvailablePromotionsForType(pieceColor, pieceType);
 
                     int currentQueens = Board.Count(c => c.Piece != null && c.Piece.Type == "queen" && c.Piece.Color == pieceColor);
                     int currentRooks = Board.Count(c => c.Piece != null && c.Piece.Type == "rook" && c.Piece.Color == pieceColor);
                     int currentBishops = Board.Count(c => c.Piece != null && c.Piece.Type == "bishop" && c.Piece.Color == pieceColor);
                     int currentKnights = Board.Count(c => c.Piece != null && c.Piece.Type == "knight" && c.Piece.Color == pieceColor);
 
-                    int totalExtraPieces = Math.Max(0, currentQueens - 1) +
-                                          Math.Max(0, currentRooks - 2) +
-                                          Math.Max(0, currentBishops - 2) +
-                                          Math.Max(0, currentKnights - 2);
+                    int extraQueens = Math.Max(0, currentQueens - 1);
+                    int extraRooks = Math.Max(0, currentRooks - 2);
+                    int extraBishops = Math.Max(0, currentBishops - 2);
+                    int extraKnights = Math.Max(0, currentKnights - 2);
+
+                    int totalPromotionsUsed = extraQueens + extraRooks + extraBishops + extraKnights;
+
+                    string explanation = pieceType switch
+                    {
+                        "queen" => "In chess, you start with 1 queen and can promote pawns to queens.",
+                        "rook" => "In chess, you start with 2 rooks and can promote pawns to rooks.",
+                        "bishop" => "In chess, you start with 2 bishops and can promote pawns to bishops.",
+                        "knight" => "In chess, you start with 2 knights and can promote pawns to knights.",
+                        _ => ""
+                    };
 
                     MessageBox.Show($"Cannot place more {localizedColor} {localizedType}s!\n\n" +
                                    $"CURRENT STATE:\n" +
-                                   $"• Total {localizedColor.ToLower()} pieces: {totalPiecesOfColor}/16\n" +
-                                   $"• Pawns: {currentPawns}/8 (missing: {missingPawns})\n" +
-                                   $"• Queens: {currentQueens}\n" +
-                                   $"• Rooks: {currentRooks}\n" +
-                                   $"• Bishops: {currentBishops}\n" +
-                                   $"• Knights: {currentKnights}\n\n" +
+                                   $"• Total {localizedColor.ToLower()} pieces: {GetTotalPiecesForColor(pieceColor)}/16\n" +
+                                   $"• Pawns: {currentPawns}/8\n" +
+                                   $"• Queens: {currentQueens} (standard: 1, extra: {extraQueens})\n" +
+                                   $"• Rooks: {currentRooks} (standard: 2, extra: {extraRooks})\n" +
+                                   $"• Bishops: {currentBishops} (standard: 2, extra: {extraBishops})\n" +
+                                   $"• Knights: {currentKnights} (standard: 2, extra: {extraKnights})\n\n" +
+                                   $"PROMOTION BUDGET:\n" +
+                                   $"• Total promotions used: {totalPromotionsUsed}/8\n" +
+                                   $"• Available promotions: {availablePromotions}\n\n" +
                                    $"LIMITS:\n" +
                                    $"• Standard {pieceType}s: {standardCount}\n" +
-                                   $"• Max {pieceType}s allowed: {maxCount} (standard + missing pawns)\n" +
+                                   $"• Max {pieceType}s allowed: {maxCount} (standard + available promotions)\n" +
                                    $"• Current {pieceType}s: {currentCount}\n\n" +
                                    $"EXPLANATION:\n" +
-                                   $"Each missing pawn can become any piece through promotion.\n" +
-                                   $"You have {missingPawns} missing pawns, so you can have up to\n" +
-                                   $"{standardCount} + {missingPawns} = {maxCount} {pieceType}s total.\n\n" +
-                                   $"Total promoted pieces so far: {totalExtraPieces}/{missingPawns}",
-                                    "Maximum Pieces Reached - Type Limit",
+                                   $"{explanation}\n" +
+                                   $"You can promote up to 8 pawns total to any pieces.\n" +
+                                   $"You've already used {totalPromotionsUsed} promotions, so {availablePromotions} are left.",
+                                    "Maximum Pieces Reached - Promotion Limit",
                                     MessageBoxButton.OK,
                                     MessageBoxImage.Information);
                 }
+                return;
+            }
+
+
+            if (willIncreaseCount && totalPiecesOfColor >= 16)
+            {
+                string localizedColor = pieceColor == "white" ? "White" : "Black";
+                MessageBox.Show($"Cannot place more pieces! {localizedColor} already has the maximum of 16 pieces on the board.\n\n" +
+                               $"Current {localizedColor.ToLower()} pieces: {totalPiecesOfColor}/16\n\n" +
+                               $"To place more pieces, you need to remove some existing {localizedColor.ToLower()} pieces first.",
+                                "Maximum Total Pieces Reached",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Information);
                 return;
             }
 
@@ -1681,18 +1720,112 @@ namespace ChessTrainer
         }
 
         /// <summary>
-        /// Gets maximum allowed count for a specific piece type and color
+        /// Gets maximum allowed count for a specific piece type and color, considering piece replacement
         /// </summary>
-        private int GetMaxPieceCountForColor(string pieceColor, string pieceType)
+        /// <param name="pieceColor">The color of the pieces to check ("white" or "black")</param>
+        /// <param name="pieceType">The type of piece being placed ("king", "queen", "rook", "bishop", "knight", "pawn")</param>
+        /// <param name="replacedPiece">The piece being replaced, or null if placing on empty square</param>
+        /// <returns>Maximum number of pieces of this type and color allowed on the board</returns>
+        private int GetMaxPieceCountForColorWithReplacement(string pieceColor, string pieceType, Piece? replacedPiece)
         {
             if (pieceType == "king") return 1;
             if (pieceType == "pawn") return 8;
 
-            int currentPawns = Board.Count(c => c.Piece != null && c.Piece.Type == "pawn" && c.Piece.Color == pieceColor);
-            int missingPawns = Math.Max(0, 8 - currentPawns);
             int standardCount = GetStandardPieceCount(pieceType);
+            int availablePromotions = GetAvailablePromotionsForTypeWithReplacement(pieceColor, pieceType, replacedPiece);
 
-            return standardCount + missingPawns;
+            int result = standardCount + availablePromotions;
+            System.Diagnostics.Debug.WriteLine($"DEBUG: GetMaxPieceCountForColorWithReplacement({pieceColor}, {pieceType}, {replacedPiece?.Type ?? "null"}) = {standardCount} + {availablePromotions} = {result}");
+            return result;
+        }
+
+        /// <summary>
+        /// Calculates how many promotions are available for a specific piece type
+        /// </summary>
+        /// <param name="pieceColor">The color of the pieces to check ("white" or "black")</param>
+        /// <param name="targetPieceType">The type of piece being evaluated ("queen", "rook", "bishop", "knight")</param>
+        /// <returns>Number of available promotions for this piece type</returns>
+        private int GetAvailablePromotionsForType(string pieceColor, string targetPieceType)
+        {
+            int currentPawns = Board.Count(c => c.Piece != null && c.Piece.Type == "pawn" && c.Piece.Color == pieceColor);
+            int currentQueens = Board.Count(c => c.Piece != null && c.Piece.Type == "queen" && c.Piece.Color == pieceColor);
+            int currentRooks = Board.Count(c => c.Piece != null && c.Piece.Type == "rook" && c.Piece.Color == pieceColor);
+            int currentBishops = Board.Count(c => c.Piece != null && c.Piece.Type == "bishop" && c.Piece.Color == pieceColor);
+            int currentKnights = Board.Count(c => c.Piece != null && c.Piece.Type == "knight" && c.Piece.Color == pieceColor);
+
+            int extraQueens = targetPieceType == "queen" ? Math.Max(0, currentQueens - 1) : Math.Max(0, currentQueens - 1);
+            int extraRooks = targetPieceType == "rook" ? Math.Max(0, currentRooks - 2) : Math.Max(0, currentRooks - 2);
+            int extraBishops = targetPieceType == "bishop" ? Math.Max(0, currentBishops - 2) : Math.Max(0, currentBishops - 2);
+            int extraKnights = targetPieceType == "knight" ? Math.Max(0, currentKnights - 2) : Math.Max(0, currentKnights - 2);
+
+            int promotionsUsedByOthers = 0;
+            if (targetPieceType != "queen") promotionsUsedByOthers += extraQueens;
+            if (targetPieceType != "rook") promotionsUsedByOthers += extraRooks;
+            if (targetPieceType != "bishop") promotionsUsedByOthers += extraBishops;
+            if (targetPieceType != "knight") promotionsUsedByOthers += extraKnights;
+
+            int missingPawns = Math.Max(0, 8 - currentPawns);
+
+            int maxPromotions = 8;
+            int availableForThisType = Math.Max(0, maxPromotions - promotionsUsedByOthers);
+
+            System.Diagnostics.Debug.WriteLine($"DEBUG: Available promotions for {pieceColor} {targetPieceType}: {availableForThisType}");
+            System.Diagnostics.Debug.WriteLine($"  Missing pawns: {missingPawns}, Used by others: {promotionsUsedByOthers}/8");
+            System.Diagnostics.Debug.WriteLine($"  Current pieces: Q:{currentQueens}, R:{currentRooks}, B:{currentBishops}, N:{currentKnights}");
+
+            return availableForThisType;
+        }
+
+        /// <summary>
+        /// Calculates how many promotions are available for a specific piece type, considering piece replacement
+        /// </summary>
+        /// <param name="pieceColor">The color of the pieces to check ("white" or "black")</param>
+        /// <param name="targetPieceType">The type of piece being placed ("queen", "rook", "bishop", "knight")</param>
+        /// <param name="replacedPiece">The piece being replaced, or null if placing on empty square</param>
+        /// <returns>Number of available promotions for this piece type</returns>
+        private int GetAvailablePromotionsForTypeWithReplacement(string pieceColor, string targetPieceType, Piece? replacedPiece)
+        {
+            int currentPawns = Board.Count(c => c.Piece != null && c.Piece.Type == "pawn" && c.Piece.Color == pieceColor);
+            int currentQueens = Board.Count(c => c.Piece != null && c.Piece.Type == "queen" && c.Piece.Color == pieceColor);
+            int currentRooks = Board.Count(c => c.Piece != null && c.Piece.Type == "rook" && c.Piece.Color == pieceColor);
+            int currentBishops = Board.Count(c => c.Piece != null && c.Piece.Type == "bishop" && c.Piece.Color == pieceColor);
+            int currentKnights = Board.Count(c => c.Piece != null && c.Piece.Type == "knight" && c.Piece.Color == pieceColor);
+
+            if (replacedPiece != null && replacedPiece.Color == pieceColor)
+            {
+                switch (replacedPiece.Type)
+                {
+                    case "queen": currentQueens--; break;
+                    case "rook": currentRooks--; break;
+                    case "bishop": currentBishops--; break;
+                    case "knight": currentKnights--; break;
+                    case "pawn": currentPawns--; break;
+                }
+            }
+
+            int extraQueens = Math.Max(0, currentQueens - 1);
+            int extraRooks = Math.Max(0, currentRooks - 2);
+            int extraBishops = Math.Max(0, currentBishops - 2);
+            int extraKnights = Math.Max(0, currentKnights - 2);
+
+            int promotionsUsedByOthers = 0;
+            if (targetPieceType != "queen") promotionsUsedByOthers += extraQueens;
+            if (targetPieceType != "rook") promotionsUsedByOthers += extraRooks;
+            if (targetPieceType != "bishop") promotionsUsedByOthers += extraBishops;
+            if (targetPieceType != "knight") promotionsUsedByOthers += extraKnights;
+
+            int maxPromotions = 8;
+            int availableForThisType = Math.Max(0, maxPromotions - promotionsUsedByOthers);
+
+            System.Diagnostics.Debug.WriteLine($"DEBUG: Available promotions for {pieceColor} {targetPieceType} (with replacement): {availableForThisType}");
+            System.Diagnostics.Debug.WriteLine($"  Used by others: {promotionsUsedByOthers}/8");
+            System.Diagnostics.Debug.WriteLine($"  Adjusted pieces: Q:{currentQueens}, R:{currentRooks}, B:{currentBishops}, N:{currentKnights}");
+            if (replacedPiece != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"  Replaced piece: {replacedPiece.Color} {replacedPiece.Type}");
+            }
+
+            return availableForThisType;
         }
 
         /// <summary>
@@ -1702,12 +1835,12 @@ namespace ChessTrainer
         {
             return pieceType switch
             {
-                "king" => 1,      // Тільки один король
-                "pawn" => 8,      // Максимум 8 пішаків
-                "queen" => 9,     // 1 початковий + 8 від промоції пішаків
-                "rook" => 10,     // 2 початкових + 8 від промоції пішаків  
-                "bishop" => 10,   // 2 початкових + 8 від промоції пішаків
-                "knight" => 10,   // 2 початкових + 8 від промоції пішаків
+                "king" => 1,
+                "pawn" => 8,
+                "queen" => 9,
+                "rook" => 10,
+                "bishop" => 10,
+                "knight" => 10,
                 _ => 1
             };
         }
@@ -1807,36 +1940,69 @@ namespace ChessTrainer
 
             _gameLogic.LoadGame(boardSetup, "white");
             _currentPlayer = "white";
-            Board = _gameLogic.GetCurrentBoard();
-            ClearMoveHistory();
 
-            GameEndType endType = _gameLogic.Board.CheckForGameEnd("white");
-            if (endType != GameEndType.None)
+            GameEndType whiteEndType = _gameLogic.Board.CheckForGameEnd("white");
+            GameEndType blackEndType = _gameLogic.Board.CheckForGameEnd("black");
+
+            if (whiteEndType != GameEndType.None || blackEndType != GameEndType.None)
             {
-                string drawMessage = GetDrawMessage(endType);
+                string endMessage = "";
+                string endTitle = "";
 
-                MessageBoxResult drawResult = MessageBox.Show(
-                    $"This position is a draw!\n\n{drawMessage}\n\nWhat would you like to do?\n\n" +
+                if (whiteEndType == GameEndType.Checkmate)
+                {
+                    endMessage = "This position is checkmate for White (Black wins)!";
+                    endTitle = "Checkmate Position";
+                }
+                else if (blackEndType == GameEndType.Checkmate)
+                {
+                    endMessage = "This position is checkmate for Black (White wins)!";
+                    endTitle = "Checkmate Position";
+                }
+                else if (whiteEndType == GameEndType.Stalemate || blackEndType == GameEndType.Stalemate)
+                {
+                    endMessage = "This position is stalemate (draw)!";
+                    endTitle = "Stalemate Position";
+                }
+                else if (whiteEndType == GameEndType.InsufficientMaterial || blackEndType == GameEndType.InsufficientMaterial)
+                {
+                    endMessage = "This position has insufficient material for checkmate (draw)!";
+                    endTitle = "Insufficient Material";
+                }
+                else
+                {
+                    endMessage = "This position is a draw!";
+                    endTitle = "Draw Position";
+                }
+
+                MessageBoxResult result = MessageBox.Show(
+                    $"{endMessage}\n\nWhat would you like to do?\n\n" +
                     "• Yes - Start a new standard game\n" +
-                    "• No - Return to setup mode to fix the position",
-                    "Draw Position Detected",
+                    "• No - Return to setup mode to modify the position",
+                    endTitle,
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Information,
                     MessageBoxResult.No);
 
-                if (drawResult == MessageBoxResult.Yes)
+                if (result == MessageBoxResult.Yes)
                 {
                     _gameLogic.InitializeGame();
                     Board = _gameLogic.GetCurrentBoard();
                     ClearMoveHistory();
                     _currentPlayer = "white";
+                    return true;
                 }
                 else
                 {
+                    if (StatusTextBlock != null)
+                        StatusTextBlock.Text = $"Setup mode. {endTitle} detected. Modify the position or choose a different setup.";
+
                     return false;
                 }
             }
 
+            Board = _gameLogic.GetCurrentBoard();
+            ClearMoveHistory();
             return true;
         }
 
@@ -1989,15 +2155,57 @@ namespace ChessTrainer
         /// </summary>
         private void StartTimers()
         {
-            if (_isTimersPaused || !_isGameActive) return;
+            if (_isTimersPaused || !_isGameActive)
+            {
+                System.Diagnostics.Debug.WriteLine($"DEBUG: StartTimers() - Not starting (paused: {_isTimersPaused}, active: {_isGameActive})");
+                return;
+            }
 
             _whiteTimer?.Stop();
             _blackTimer?.Stop();
 
-            if (_currentPlayer == "white")
-                _whiteTimer?.Start();
+            System.Diagnostics.Debug.WriteLine($"DEBUG: StartTimers() - Current player: {_currentPlayer}, Computer mode: {_isComputerMode}, Player plays black: {_playerPlaysBlack}");
+
+            if (_isComputerMode)
+            {
+                bool isPlayerTurn = (_playerPlaysBlack && _currentPlayer == "black") ||
+                                   (!_playerPlaysBlack && _currentPlayer == "white");
+
+                System.Diagnostics.Debug.WriteLine($"DEBUG: Computer mode - Is player turn: {isPlayerTurn}");
+
+                if (isPlayerTurn)
+                {
+                    if (_playerPlaysBlack && _currentPlayer == "black")
+                    {
+                        System.Diagnostics.Debug.WriteLine("DEBUG: Starting BLACK timer (player plays black)");
+                        _blackTimer?.Start();
+                    }
+                    else if (!_playerPlaysBlack && _currentPlayer == "white")
+                    {
+                        System.Diagnostics.Debug.WriteLine("DEBUG: Starting WHITE timer (player plays white)");
+                        _whiteTimer?.Start();
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("DEBUG: Computer turn - no timer started");
+                }
+            }
             else
-                _blackTimer?.Start();
+            {
+                System.Diagnostics.Debug.WriteLine($"DEBUG: Two player mode - starting timer for {_currentPlayer}");
+
+                if (_currentPlayer == "white")
+                {
+                    System.Diagnostics.Debug.WriteLine("DEBUG: Starting WHITE timer");
+                    _whiteTimer?.Start();
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("DEBUG: Starting BLACK timer");
+                    _blackTimer?.Start();
+                }
+            }
 
             UpdateTimerVisuals();
         }
@@ -2116,11 +2324,11 @@ namespace ChessTrainer
         /// </summary>
         private void AnalyzePosition_Click(object sender, RoutedEventArgs e)
         {
-            _isAnalysisMode = !_isAnalysisMode;
-            Button? button = sender as Button;
-
-            if (_isAnalysisMode)
+            if (!_isAnalysisMode)
             {
+                _isAnalysisMode = true;
+                Button? button = sender as Button;
+
                 if (button != null)
                     button.Content = "Exit Analysis";
 
@@ -2130,7 +2338,6 @@ namespace ChessTrainer
                     TimerControlButton.Content = "Resume Timers";
 
                 string analysisText = PerformPositionAnalysis();
-
                 ShowAnalysisResults(analysisText);
 
                 if (StatusTextBlock != null)
@@ -2138,22 +2345,18 @@ namespace ChessTrainer
             }
             else
             {
-                if (button != null)
-                    button.Content = "Analyze Position";
+                ExitAnalysisMode();
 
-                if (_isGameActive)
+                foreach (Window window in Application.Current.Windows)
                 {
-                    _isTimersPaused = false;
-                    if (TimerControlButton != null)
-                        TimerControlButton.Content = "Pause Timers";
-                    StartTimers();
+                    if (window.Title == "Position Analysis Results")
+                    {
+                        window.Close();
+                        break;
+                    }
                 }
-
-                UpdateStatusText();
-                ClearHighlights();
             }
         }
-
         /// <summary>
         /// Performs position analysis and returns the results as text.
         /// </summary>
@@ -2284,6 +2487,16 @@ namespace ChessTrainer
                 ResizeMode = ResizeMode.CanResize
             };
 
+            analysisWindow.Closing += (sender, e) =>
+            {
+                System.Diagnostics.Debug.WriteLine("DEBUG: Analysis window closing via X button");
+                ExitAnalysisMode();
+            };
+
+            Grid mainGrid = new Grid();
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
             ScrollViewer scrollViewer = new ScrollViewer
             {
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -2303,9 +2516,69 @@ namespace ChessTrainer
             };
 
             scrollViewer.Content = analysisTextBlock;
-            analysisWindow.Content = scrollViewer;
+            Grid.SetRow(scrollViewer, 0);
+            mainGrid.Children.Add(scrollViewer);
 
+            StackPanel buttonPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(10)
+            };
+
+            Button exitButton = new Button
+            {
+                Content = "Exit Analysis",
+                Padding = new Thickness(20, 5, 20, 5),
+                Margin = new Thickness(5),
+                MinWidth = 120
+            };
+
+            exitButton.Click += (sender, e) =>
+            {
+                System.Diagnostics.Debug.WriteLine("DEBUG: Exit Analysis button clicked");
+                ExitAnalysisMode();
+                analysisWindow.Close();
+            };
+
+            buttonPanel.Children.Add(exitButton);
+
+            Grid.SetRow(buttonPanel, 1);
+            mainGrid.Children.Add(buttonPanel);
+
+            analysisWindow.Content = mainGrid;
             analysisWindow.Show();
+        }
+
+        /// <summary>
+        /// Exits analysis mode and restores normal game state
+        /// </summary>
+        private void ExitAnalysisMode()
+        {
+            if (!_isAnalysisMode)
+                return;
+
+            System.Diagnostics.Debug.WriteLine("DEBUG: Exiting analysis mode");
+
+            _isAnalysisMode = false;
+
+            Button? analyzeButton = FindButtonByContent("Exit Analysis");
+            if (analyzeButton != null)
+                analyzeButton.Content = "Analyze Position";
+
+            if (_isGameActive)
+            {
+                _isTimersPaused = false;
+                if (TimerControlButton != null)
+                    TimerControlButton.Content = "Pause Timers";
+                StartTimers();
+            }
+
+            ClearHighlights();
+
+            UpdateStatusText();
+
+            System.Diagnostics.Debug.WriteLine("DEBUG: Analysis mode exited successfully");
         }
 
         #endregion
@@ -2545,9 +2818,7 @@ namespace ChessTrainer
                                 item.Tag?.ToString() == difficultyStr)
                             {
                                 DifficultyComboBox.SelectionChanged -= DifficultyComboBox_SelectionChanged;
-
                                 DifficultyComboBox.SelectedIndex = i;
-
                                 DifficultyComboBox.SelectionChanged += DifficultyComboBox_SelectionChanged;
                                 break;
                             }
@@ -2557,6 +2828,14 @@ namespace ChessTrainer
 
                 if (DifficultyComboBox != null)
                     DifficultyComboBox.Visibility = Visibility.Visible;
+
+                ResetTimers();
+                _isTimersPaused = false;
+                if (TimerControlButton != null)
+                    TimerControlButton.Content = "Pause Timers";
+
+                UpdateTimerModeVisibility();
+                StartTimers();
 
                 bool isComputerTurn = (_playerPlaysBlack && _currentPlayer == "white") ||
                                     (!_playerPlaysBlack && _currentPlayer == "black");
@@ -2584,6 +2863,7 @@ namespace ChessTrainer
             computerModeWindow.Content = mainPanel;
             computerModeWindow.ShowDialog();
         }
+
         /// <summary>
         /// Parses a board row from file data.
         /// </summary>
@@ -2775,11 +3055,14 @@ namespace ChessTrainer
         {
             UpdateStatusText();
 
+            _currentPlayer = _gameLogic.CurrentPlayer;
+
             StopTimers();
 
-            if (!_isGameActive || _isTimersPaused) return;
-
-            StartTimers();
+            if (_isGameActive && !_isTimersPaused)
+            {
+                StartTimers();
+            }
         }
 
         /// <summary>
@@ -2865,14 +3148,24 @@ namespace ChessTrainer
             UpdateBoardUI();
 
             MessageBoxResult gameResult = MessageBox.Show(
-                "Position setup complete. Would you like to play against the computer with this position?",
+                "Position setup complete. How would you like to play this position?\n\n" +
+                "• Yes - Play against computer\n" +
+                "• No - Two player mode",
                 "Game Mode Selection",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
             if (gameResult == MessageBoxResult.Yes)
             {
-                ShowComputerModeDialog();
+                if (!_isComputerMode)
+                {
+                    ShowComputerModeDialog();
+                }
+                else
+                {
+                    _isGameActive = true;
+                    StartGameAfterSetup();
+                }
             }
             else
             {
@@ -2882,11 +3175,47 @@ namespace ChessTrainer
 
                 if (DifficultyComboBox != null)
                     DifficultyComboBox.Visibility = Visibility.Collapsed;
+
+                _isGameActive = true;
+                StartGameAfterSetup();
+            }
+        }
+
+        /// <summary>
+        /// Starts the game after setup mode with proper timer initialization
+        /// </summary>
+        private void StartGameAfterSetup()
+        {
+            ResetTimers();
+            _isTimersPaused = false;
+            if (TimerControlButton != null)
+                TimerControlButton.Content = "Pause Timers";
+
+            UpdateTimerModeVisibility();
+            StartTimers();
+
+            if (_isComputerMode)
+            {
+                bool isComputerTurn = (_playerPlaysBlack && _currentPlayer == "white") ||
+                                    (!_playerPlaysBlack && _currentPlayer == "black");
+
+                if (isComputerTurn)
+                {
+                    Task.Run(() =>
+                    {
+                        System.Threading.Thread.Sleep(500);
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            _gameLogic.MakeComputerMove();
+                        });
+                    });
+                }
             }
 
-            _isGameActive = true;
             UpdateStatusText();
+            ForceRefreshBoardState();
         }
+
         /// <summary>
         /// Handles the clear board button click.
         /// </summary>

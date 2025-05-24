@@ -24,7 +24,6 @@ namespace ChessTrainer
         /// <returns>Visibility.Visible for true, Visibility.Collapsed for false</returns>
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            // Use pattern matching for more reliable type checking
             if (value is bool boolValue)
             {
                 return boolValue ? Visibility.Visible : Visibility.Collapsed;
@@ -39,7 +38,6 @@ namespace ChessTrainer
         /// </summary>
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            // Added more detailed exception message
             throw new NotImplementedException("Converting from Visibility to boolean is not supported");
         }
     }

@@ -255,6 +255,8 @@ namespace ChessTrainer
             if (piece == null || piece.Color != _currentPlayer)
                 return false;
 
+            System.Diagnostics.Debug.WriteLine($"DEBUG: TryMovePiece() - Before move, current player: {_currentPlayer}");
+
             if (_board.IsValidMove(startRow, startCol, endRow, endCol, _currentPlayer))
             {
                 Piece? movedPiece = _board.GetPiece(startRow, startCol);
@@ -291,11 +293,16 @@ namespace ChessTrainer
                     }
                 }
 
+                // ВАЖЛИВО: Спочатку перемикаємо гравця
+                SwitchPlayer();
+                System.Diagnostics.Debug.WriteLine($"DEBUG: TryMovePiece() - After switch, current player: {_currentPlayer}");
+
+                // Потім викликаємо події
                 OnMoveMade(new MoveEventArgs(startRow, startCol, endRow, endCol, moveNotation));
 
                 if (capturedPiece?.Type == "king")
                 {
-                    OnGameEnded(new GameEndEventArgs(GameEndType.KingCaptured, _currentPlayer));
+                    OnGameEnded(new GameEndEventArgs(GameEndType.KingCaptured, _currentPlayer == "white" ? "black" : "white"));
                     return true;
                 }
 
@@ -305,8 +312,7 @@ namespace ChessTrainer
                     return true;
                 }
 
-                SwitchPlayer();
-
+                // Перевірка кінця гри для НОВОГО поточного гравця (після перемикання)
                 GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
                 if (endType != GameEndType.None)
                 {
@@ -317,6 +323,7 @@ namespace ChessTrainer
 
                 OnBoardUpdated();
 
+                // Після успішного ходу людини, якщо це комп'ютерний режим - запускаємо хід комп'ютера
                 if (_isComputerMode && !IsPlayerTurn())
                 {
                     Task.Run(() =>
@@ -335,7 +342,6 @@ namespace ChessTrainer
 
             return false;
         }
-
         /// <summary>
         /// Checks if a pawn needs promotion
         /// </summary>
@@ -496,8 +502,13 @@ namespace ChessTrainer
         {
             string computerColor = _playerPlaysBlack ? "white" : "black";
 
+            System.Diagnostics.Debug.WriteLine($"DEBUG: MakeComputerMove() - Current player: {_currentPlayer}, Computer color: {computerColor}");
+
             if (_currentPlayer != computerColor)
+            {
+                System.Diagnostics.Debug.WriteLine($"DEBUG: MakeComputerMove() - Not computer's turn, exiting");
                 return;
+            }
 
             var possibleMoves = _board.GetAllPossibleMovesForPlayer(computerColor);
 
@@ -507,6 +518,8 @@ namespace ChessTrainer
 
                 if (selectedMove != null)
                 {
+                    System.Diagnostics.Debug.WriteLine($"DEBUG: MakeComputerMove() - Making move: {selectedMove.ToAlgebraicNotation()}");
+
                     Piece? movedPiece = _board.GetPiece(selectedMove.StartRow, selectedMove.StartCol);
                     Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
 
@@ -542,6 +555,11 @@ namespace ChessTrainer
                         capturedPiece
                     );
 
+                    // ВАЖЛИВО: Спочатку перемикаємо гравця
+                    SwitchPlayer();
+                    System.Diagnostics.Debug.WriteLine($"DEBUG: MakeComputerMove() - After switch, current player: {_currentPlayer}");
+
+                    // Потім викликаємо події
                     OnMoveMade(new MoveEventArgs(
                         selectedMove.StartRow,
                         selectedMove.StartCol,
@@ -562,8 +580,7 @@ namespace ChessTrainer
                         return;
                     }
 
-                    SwitchPlayer();
-
+                    // Перевірка кінця гри для НОВОГО поточного гравця (після перемикання)
                     GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
                     if (endType != GameEndType.None)
                     {
@@ -575,7 +592,13 @@ namespace ChessTrainer
                     OnBoardUpdated();
                 }
             }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"DEBUG: MakeComputerMove() - No possible moves for {computerColor}");
+            }
         }
+
+
         #endregion
 
         #region AI Methods
