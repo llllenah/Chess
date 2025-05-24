@@ -5,17 +5,155 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ChessTrainer"
         mc:Ignorable="d"
-        Title="ChessTrainer" Height="800" Width="1200"
-        MinHeight="600" MinWidth="800">
+        Title="Chess Trainer" Height="800" Width="1200"
+        MinHeight="600" MinWidth="1000"
+        ResizeMode="CanMinimize">
     <Window.Resources>
         <local:PieceConverter x:Key="PieceConverter" />
+        <local:BooleanToVisibilityConverter x:Key="BooleanToVisibility"/>
+
+        <!-- Button Style -->
+        <Style x:Key="GameButton" TargetType="Button">
+            <Setter Property="Background" Value="#3F51B5"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="0,5,0,5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center" 
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#303F9F"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#1A237E"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#9FA8DA"/>
+                                <Setter Property="Foreground" Value="#E8EAF6"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Analysis Button Style -->
+        <Style x:Key="AnalysisButton" TargetType="Button" BasedOn="{StaticResource GameButton}">
+            <Setter Property="Background" Value="#673AB7"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center" 
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#512DA8"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#4527A0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Timer Button Style -->
+        <Style x:Key="TimerButton" TargetType="Button" BasedOn="{StaticResource GameButton}">
+            <Setter Property="Background" Value="#009688"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center" 
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#00796B"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#004D40"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Danger Button Style -->
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource GameButton}">
+            <Setter Property="Background" Value="#F44336"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center" 
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#D32F2F"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#B71C1C"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Section Title Style -->
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#303F9F"/>
+            <Setter Property="Margin" Value="0,15,0,5"/>
+        </Style>
+
+        <!-- Board Label Style -->
+        <Style x:Key="BoardLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="2"/>
+        </Style>
     </Window.Resources>
 
-    <Grid>
+    <Grid x:Name="MainGrid">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" MinWidth="600"/>
             <ColumnDefinition Width="300"/>
             <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="350"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -23,90 +161,293 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <ItemsControl x:Name="ChessBoardItemsControl" ItemsSource="{Binding Board}" Grid.Row="1" Grid.Column="0">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <UniformGrid Rows="8" Columns="8"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Border Background="{Binding CellColor}" AllowDrop="True"
-                DragEnter="BoardCell_DragEnter" Drop="BoardCell_Drop"
-                MouseLeftButtonDown="BoardCell_MouseLeftButtonDown">
+        <!-- Game Status -->
+        <Border Grid.Column="0" Grid.Row="0" Margin="10,10,10,0" 
+                Background="#303F9F" CornerRadius="3">
+            <TextBlock x:Name="StatusTextBlock" 
+                       Text="Game Status" Margin="10" FontSize="14" 
+                       FontWeight="Bold" Foreground="White"/>
+        </Border>
 
-                        <TextBlock
-                FontSize="40"
-                FontFamily="Segoe UI Symbol"
-                FontWeight="Bold"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                TextWrapping="NoWrap">
+        <!-- Chess Board with Coordinates -->
+        <Border Grid.Row="1" Grid.Column="0" Margin="10" 
+                BorderBrush="#795548" BorderThickness="5" 
+                CornerRadius="3" Background="#EEEEEE">
+            <Grid x:Name="ChessBoardGrid">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                <!-- Символ фігури -->
-                            <TextBlock.Text>
-                                <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="text">
-                                    <Binding Path="Piece.Color" />
-                                    <Binding Path="Piece.Type" />
-                                </MultiBinding>
-                            </TextBlock.Text>
+                <!-- Horizontal coordinates (letters) top -->
+                <UniformGrid Grid.Row="0" Grid.Column="1" Rows="1" Columns="8" Name="TopFileLabels">
+                    <TextBlock Text="a" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="b" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="c" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="d" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="e" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="f" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="g" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="h" Style="{StaticResource BoardLabelStyle}"/>
+                </UniformGrid>
 
-                <!-- Колір фігури -->
-                            <TextBlock.Foreground>
-                                <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="fill">
-                                    <Binding Path="Piece.Color" />
-                                    <Binding Path="Piece.Type" />
-                                </MultiBinding>
-                            </TextBlock.Foreground>
+                <!-- Vertical coordinates (numbers) left -->
+                <UniformGrid Grid.Row="1" Grid.Column="0" Rows="8" Columns="1" Name="LeftRankLabels">
+                    <TextBlock Text="8" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="7" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="6" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="5" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="4" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="3" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="2" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="1" Style="{StaticResource BoardLabelStyle}"/>
+                </UniformGrid>
 
-                <!-- Ефект обводу (stroke) через TextEffect -->
-                            <TextBlock.TextEffects>
-                                <TextEffect>
-                                    <TextEffect.Foreground>
-                                        <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="stroke">
-                                            <Binding Path="Piece.Color" />
-                                            <Binding Path="Piece.Type" />
+                <!-- Horizontal coordinates (letters) bottom -->
+                <UniformGrid Grid.Row="2" Grid.Column="1" Rows="1" Columns="8" Name="BottomFileLabels">
+                    <TextBlock Text="a" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="b" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="c" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="d" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="e" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="f" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="g" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="h" Style="{StaticResource BoardLabelStyle}"/>
+                </UniformGrid>
+
+                <!-- Vertical coordinates (numbers) right -->
+                <UniformGrid Grid.Row="1" Grid.Column="2" Rows="8" Columns="1" Name="RightRankLabels">
+                    <TextBlock Text="8" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="7" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="6" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="5" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="4" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="3" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="2" Style="{StaticResource BoardLabelStyle}"/>
+                    <TextBlock Text="1" Style="{StaticResource BoardLabelStyle}"/>
+                </UniformGrid>
+
+                <!-- Chess Board -->
+                <ItemsControl x:Name="ChessBoardItemsControl" Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Board}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="8" Columns="8"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{Binding Background}" AllowDrop="True"
+                                    DragEnter="BoardCell_DragEnter" Drop="BoardCell_Drop"
+                                    MouseLeftButtonDown="BoardCell_MouseLeftButtonDown">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                                <Setter Property="BorderBrush">
+                                                    <Setter.Value>
+                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                            <GradientStop Color="#4CAF50" Offset="0.0" />
+                                                            <GradientStop Color="#8BC34A" Offset="1.0" />
+                                                        </LinearGradientBrush>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Setter Property="BorderThickness" Value="3" />
+                                                <Setter Property="Effect">
+                                                    <Setter.Value>
+                                                        <DropShadowEffect Color="#4CAF50" ShadowDepth="0" BlurRadius="10" Opacity="0.7" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock
+                                    FontSize="40"
+                                    FontFamily="Segoe UI Symbol"
+                                    FontWeight="Bold"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    TextWrapping="NoWrap">
+
+                                    <!-- Piece symbol -->
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="text" FallbackValue="">
+                                            <Binding Path="Piece.Color" FallbackValue=""/>
+                                            <Binding Path="Piece.Type" FallbackValue=""/>
                                         </MultiBinding>
-                                    </TextEffect.Foreground>
-                                </TextEffect>
-                            </TextBlock.TextEffects>
-                        </TextBlock>
+                                    </TextBlock.Text>
 
+                                    <!-- Piece color -->
+                                    <TextBlock.Foreground>
+                                        <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="fill" FallbackValue="Black">
+                                            <Binding Path="Piece.Color" FallbackValue=""/>
+                                            <Binding Path="Piece.Type" FallbackValue=""/>
+                                        </MultiBinding>
+                                    </TextBlock.Foreground>
+
+                                    <!-- Piece outline -->
+                                    <TextBlock.TextEffects>
+                                        <TextEffect>
+                                            <TextEffect.Foreground>
+                                                <MultiBinding Converter="{StaticResource PieceConverter}" ConverterParameter="stroke" FallbackValue="Transparent">
+                                                    <Binding Path="Piece.Color" FallbackValue=""/>
+                                                    <Binding Path="Piece.Type" FallbackValue=""/>
+                                                </MultiBinding>
+                                            </TextEffect.Foreground>
+                                        </TextEffect>
+                                    </TextBlock.TextEffects>
+                                </TextBlock>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </Border>
+
+        <!-- Game Result -->
+        <Border Grid.Column="0" Grid.Row="2" Margin="10,0,10,10" 
+                Background="#F5F5F5" CornerRadius="3"
+                BorderBrush="#BDBDBD" BorderThickness="1">
+            <TextBlock x:Name="GameResultTextBlock" 
+                       Text="{Binding GameResultText}" Margin="10"
+                       FontWeight="SemiBold"/>
+        </Border>
+
+        <!-- Control Panel -->
+        <Border Grid.Column="1" Margin="10,10,10,10" 
+                Background="#F5F5F5" CornerRadius="5" 
+                BorderBrush="#BDBDBD" BorderThickness="1" Grid.RowSpan="3">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,9,9">
+                <StackPanel Margin="10">
+                    <TextBlock Text="Game Controls" Style="{StaticResource SectionTitle}" FontSize="16"/>
+                    <Button Content="New Game" Style="{StaticResource GameButton}" Click="StartNewGame_Click"/>
+                    <Button x:Name="ClearBoardButton" Content="Clear Board" Style="{StaticResource DangerButton}" 
+                            Click="ClearBoard_Click" Visibility="Collapsed"/>
+
+                    <Separator Margin="0,10,0,10"/>
+
+                    <TextBlock Text="Game Mode" Style="{StaticResource SectionTitle}"/>
+                    <Button Content="Two Players Mode" Style="{StaticResource GameButton}" 
+                            Click="SetTwoPlayersMode_Click"/>
+                    <Button Content="Computer Opponent" Style="{StaticResource GameButton}" 
+                            Click="SetComputerMode_Click"/>
+
+                    <!-- Player Color Selection -->
+                    <StackPanel Orientation="Vertical" 
+                                Visibility="{Binding IsComputerMode, Converter={StaticResource BooleanToVisibility}}"
+                                Margin="0,10,0,0">
+                        <TextBlock Text="Select your color:" Style="{StaticResource SectionTitle}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
+                            <RadioButton x:Name="PlayAsWhiteRadioButton" 
+                                         Content="Play as White" 
+                                         IsChecked="True"
+                                         Checked="PlayerColorRadioButton_Checked"
+                                         Margin="0,0,10,0"/>
+                            <RadioButton x:Name="PlayAsBlackRadioButton" 
+                                         Content="Play as Black"
+                                         Checked="PlayerColorRadioButton_Checked"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Difficulty Level -->
+                    <StackPanel Margin="0,5,0,5" 
+                                Visibility="{Binding IsComputerMode, Converter={StaticResource BooleanToVisibility}}">
+                        <TextBlock Text="Difficulty Level:" Style="{StaticResource SectionTitle}"/>
+                        <ComboBox x:Name="DifficultyComboBox" 
+                                  SelectionChanged="DifficultyComboBox_SelectionChanged"
+                                  Margin="0,5,0,10" Padding="5,3">
+                            <ComboBoxItem Content="Random" Tag="Random"/>
+                            <ComboBoxItem Content="Easy" Tag="Easy"/>
+                            <ComboBoxItem Content="Medium" Tag="Medium"/>
+                            <ComboBoxItem Content="Hard" Tag="Hard"/>
+                            <ComboBoxItem Content="Expert" Tag="Expert"/>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <Separator Margin="0,10,0,10"/>
+
+                    <TextBlock Text="Analysis" Style="{StaticResource SectionTitle}"/>
+                    <Button Content="Analyze Position" Style="{StaticResource AnalysisButton}" 
+                            Click="AnalyzePosition_Click"/>
+
+                    <Separator Margin="0,10,0,10"/>
+
+                    <TextBlock Text="Additional Options" Style="{StaticResource SectionTitle}"/>
+                    <Button Content="Setup Position" Style="{StaticResource GameButton}" 
+                            Click="SetupPosition_Click"/>
+                    <Button Content="Save Position" Style="{StaticResource GameButton}" 
+                            Click="SavePosition_Click"/>
+                    <Button Content="Load Position" Style="{StaticResource GameButton}" 
+                            Click="LoadPosition_Click"/>
+                    <CheckBox x:Name="FlipBoardCheckBox" Content="Flip Board" 
+                              Checked="FlipBoardCheckBox_Checked" 
+                              Unchecked="FlipBoardCheckBox_Checked" 
+                              Margin="0,10,0,0"/>
+
+                    <!-- Move History -->
+                    <TextBlock Text="Move History:" Style="{StaticResource SectionTitle}"/>
+                    <Border BorderBrush="#BDBDBD" BorderThickness="1" CornerRadius="3" Margin="0,5,0,0">
+                        <ListBox x:Name="MoveHistoryListBox" Height="150" BorderThickness="0"/>
                     </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
 
-        </ItemsControl>
+        <!-- Chess Timers -->
+        <Border Grid.Column="2" Margin="10,10,10,379" 
+                Background="#F5F5F5" CornerRadius="5"
+                BorderBrush="#BDBDBD" BorderThickness="1" Grid.RowSpan="2">
+            <StackPanel Margin="10">
+                <TextBlock Text="Chess Timers" Style="{StaticResource SectionTitle}" 
+                           HorizontalAlignment="Center" Margin="0,0,0,10"/>
 
-        <StackPanel Grid.Column="1" Grid.Row="1" Margin="10">
-            <Button Content="Нова Гра" Click="StartNewGame_Click" Margin="5"/>
-            <Button Content="Очистити Дошку" Click="ClearBoard_Click" Margin="5"/>
-            <Button Content="Режим 2 Гравці" Click="SetTwoPlayersMode_Click" Margin="5"/>
-            <Button Content="Режим проти Комп'ютера" Click="SetComputerMode_Click" Margin="5"/>
-            <ComboBox x:Name="DifficultyComboBox" Margin="5" Visibility="Collapsed" SelectionChanged="DifficultyComboBox_SelectionChanged">
-                <ComboBoxItem Content="Легкий"/>
-                <ComboBoxItem Content="Середній"/>
-                <ComboBoxItem Content="Складний"/>
-            </ComboBox>
-            <Button Content="Зберегти Позицію" Click="SavePosition_Click" Margin="5"/>
-            <Button Content="Завантажити Позицію" Click="LoadPosition_Click" Margin="5"/>
-            <StackPanel Orientation="Horizontal">
-                <RadioButton x:Name="PlayAsWhiteRadioButton" Content="Грати за Білих" IsChecked="True" Checked="PlayerColorRadioButton_Checked" Margin="5"/>
-                <RadioButton x:Name="PlayAsBlackRadioButton" Content="Грати за Чорних" Checked="PlayerColorRadioButton_Checked" Margin="5"/>
+                <!-- Timer with Active Indicator -->
+                <Border x:Name="WhiteTimerBorder" Background="White" CornerRadius="3" Margin="0,5,0,10" 
+                        BorderBrush="#BDBDBD" BorderThickness="2">
+                    <Grid>
+                        <!-- Active Timer Indicator -->
+                        <Rectangle x:Name="WhiteActiveIndicator" Fill="#4CAF50" Height="5" 
+                                   VerticalAlignment="Top" HorizontalAlignment="Stretch"
+                                   Visibility="Collapsed"/>
+                        <StackPanel Margin="10,5">
+                            <TextBlock Text="White:" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock x:Name="WhiteTimeTextBlock" Text="00:30:00" 
+                                       FontSize="22" FontFamily="Consolas" FontWeight="SemiBold" 
+                                       HorizontalAlignment="Center" Margin="0,0,0,5"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Timer with Active Indicator -->
+                <Border x:Name="BlackTimerBorder" Background="White" CornerRadius="3" Margin="0,10,0,10" 
+                        BorderBrush="#BDBDBD" BorderThickness="2">
+                    <Grid>
+                        <!-- Active Timer Indicator -->
+                        <Rectangle x:Name="BlackActiveIndicator" Fill="#4CAF50" Height="5" 
+                                   VerticalAlignment="Top" HorizontalAlignment="Stretch"
+                                   Visibility="Collapsed"/>
+                        <StackPanel Margin="10,5">
+                            <TextBlock Text="Black:" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock x:Name="BlackTimeTextBlock" Text="00:30:00" 
+                                       FontSize="22" FontFamily="Consolas" FontWeight="SemiBold" 
+                                       HorizontalAlignment="Center" Margin="0,0,0,5"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Timer Control Button -->
+                <Button x:Name="TimerControlButton" 
+                        Content="Pause Timers" 
+                        Style="{StaticResource TimerButton}" 
+                        Click="TimerControl_Click"
+                        Margin="0,10,0,0"/>
             </StackPanel>
-            <CheckBox x:Name="FlipBoardCheckBox" Content="Перевернути Дошку" Checked="FlipBoardCheckBox_Checked" Unchecked="FlipBoardCheckBox_Checked" Margin="5"/>
-        </StackPanel>
-
-        <TextBlock x:Name="StatusTextBlock" Grid.Column="0" Grid.Row="0" Text="Статус гри" Margin="10"/>
-        <TextBlock x:Name="GameResultTextBlock" Grid.Column="0" Grid.Row="2" Text="{Binding GameResultText}" Margin="10"/>
-
-        <StackPanel Grid.Column="2" Grid.Row="1" Margin="10">
-            <TextBlock Text="Час Білих:" FontWeight="Bold" Margin="5"/>
-            <TextBlock x:Name="WhiteTimeTextBlock" Text="00:30:00" Margin="5"/>
-            <TextBlock Text="Час Чорних:" FontWeight="Bold" Margin="5"/>
-            <TextBlock x:Name="BlackTimeTextBlock" Text="00:30:00" Margin="5"/>
-        </StackPanel>
-
-        <ListBox x:Name="MoveHistoryListBox" Grid.Column="2" Grid.Row="1" Margin="10" Height="200" VerticalAlignment="Bottom"/>
+        </Border>
     </Grid>
 </Window>

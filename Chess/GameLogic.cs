@@ -2,67 +2,181 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Media;
-using System.Windows.Threading;
 
 namespace ChessTrainer
 {
+    /// <summary>
+    /// Manages the core game logic for the chess application
+    /// </summary>
     public class GameLogic
     {
+        #region Fields
+
+        /// <summary>
+        /// The chess board
+        /// </summary>
         private Board _board;
+
+        /// <summary>
+        /// Current player's color ("white" or "black")
+        /// </summary>
         private string _currentPlayer = "white";
+
+        /// <summary>
+        /// Flag indicating whether computer opponent is enabled
+        /// </summary>
         private bool _isComputerMode = false;
-        private int _computerDifficulty = 1;
-        private bool _playerPlaysBlack = false; // Додаємо можливість грати за чорних
 
-        public event EventHandler? BoardUpdated;
-        public event EventHandler? MoveMade;
-        public event EventHandler? GameEnded;
+        /// <summary>
+        /// Flag indicating whether the human player is playing as black
+        /// </summary>
+        private bool _playerPlaysBlack = false;
 
+        /// <summary>
+        /// Random number generator for AI decisions
+        /// </summary>
+        private readonly Random _random = new Random();
+
+        /// <summary>
+        /// Action to display pawn promotion dialog
+        /// </summary>
+        private Func<string, string> _showPromotionDialog;
+
+        /// <summary>
+        /// Counter for the 50-move rule
+        /// </summary>
+        private int _halfMovesSinceCaptureOrPawn = 0;
+
+        #endregion
+
+        #region Properties
+
+        /// <summary>
+        /// Gets the chess board
+        /// </summary>
         public Board Board => _board;
 
-        // Публічна властивість для доступу до поточного гравця
+        /// <summary>
+        /// Gets the current player's color
+        /// </summary>
         public string CurrentPlayer => _currentPlayer;
 
-        // Властивість для керування стороною гравця
+        /// <summary>
+        /// Gets or sets whether the human player is playing as black
+        /// </summary>
         public bool PlayerPlaysBlack
         {
             get => _playerPlaysBlack;
             set => _playerPlaysBlack = value;
         }
 
-        public int ComputerDifficulty
+        /// <summary>
+        /// Difficulty levels for the computer opponent
+        /// </summary>
+        public enum ComputerDifficulty
         {
-            get => _computerDifficulty;
-            set => _computerDifficulty = value;
+            Random = 1,
+            Easy = 2,
+            Medium = 3,
+            Hard = 4,
+            Expert = 5
         }
 
+        /// <summary>
+        /// Gets or sets the current difficulty level
+        /// </summary>
+        public ComputerDifficulty CurrentDifficulty { get; set; } = ComputerDifficulty.Medium;
+
+        #endregion
+
+        #region Events
+
+        /// <summary>
+        /// Event raised when the board is updated
+        /// </summary>
+        public event EventHandler? BoardUpdated;
+
+        /// <summary>
+        /// Event raised when a move is made
+        /// </summary>
+        public event EventHandler<MoveEventArgs>? MoveMade;
+
+        /// <summary>
+        /// Event raised when the game ends
+        /// </summary>
+        public event EventHandler<GameEndEventArgs>? GameEnded;
+
+        /// <summary>
+        /// Event raised when a pawn needs promotion
+        /// </summary>
+        public event EventHandler<PawnPromotionEventArgs>? PawnPromotion;
+
+        #endregion
+
+        #region Constructor
+
+        /// <summary>
+        /// Creates a new GameLogic instance
+        /// </summary>
         public GameLogic()
         {
             _board = new Board();
-            InitializeGame(); // Викликаємо метод ініціалізації при створенні об'єкта GameLogic
+            InitializeGame();
+
+            _showPromotionDialog = (color) => "queen";
         }
 
+        /// <summary>
+        /// Sets the callback for pawn promotion dialog
+        /// </summary>
+        /// <param name="promotionCallback">Function that takes color and returns piece type</param>
+        public void SetPromotionDialogCallback(Func<string, string> promotionCallback)
+        {
+            _showPromotionDialog = promotionCallback;
+        }
+
+        #endregion
+
+        #region Game State Management
+
+        /// <summary>
+        /// Initializes a new game
+        /// </summary>
         public void InitializeGame()
         {
             _board.InitializeBoard();
-            _currentPlayer = "white"; // Шахи завжди починаються з білих
-            BoardUpdated?.Invoke(this, EventArgs.Empty);
+            _currentPlayer = "white";
+            _halfMovesSinceCaptureOrPawn = 0;
 
-            // Якщо гравець грає за чорних і комп'ютер гратиме за білих, комп'ютер робить перший хід
+            OnBoardUpdated();
+
             if (_isComputerMode && _playerPlaysBlack && _currentPlayer == "white")
             {
                 MakeComputerMove();
             }
         }
 
+        /// <summary>
+        /// Loads a game from a board position
+        /// </summary>
+        /// <param name="boardState">The board state to load</param>
+        /// <param name="currentPlayer">The player to move</param>
         public void LoadGame(Piece?[,] boardState, string currentPlayer)
         {
             _board = new Board(boardState);
             _currentPlayer = currentPlayer;
-            BoardUpdated?.Invoke(this, EventArgs.Empty); // Оновлюємо UI після завантаження
+            _halfMovesSinceCaptureOrPawn = 0;
+
+            OnBoardUpdated();
         }
 
+        /// <summary>
+        /// Gets the current board state as UI cells
+        /// </summary>
+        /// <returns>Collection of BoardCell objects</returns>
         public ObservableCollection<BoardCell> GetCurrentBoard()
         {
             var boardCells = new ObservableCollection<BoardCell>();
@@ -71,8 +185,8 @@ namespace ChessTrainer
             {
                 for (int col = 0; col < 8; col++)
                 {
-                    int displayRow = _playerPlaysBlack ? 7 - row : row;
-                    int displayCol = _playerPlaysBlack ? 7 - col : col;
+                    int displayRow = row;
+                    int displayCol = col;
 
                     Piece? piece = _board.GetPiece(row, col);
 
@@ -83,322 +197,229 @@ namespace ChessTrainer
                         piece));
                 }
             }
+
             return boardCells;
         }
 
-
-        public bool TryMovePiece(int startRow, int startCol, int endRow, int endCol)
+        /// <summary>
+        /// Sets the game mode (computer opponent or two players)
+        /// </summary>
+        /// <param name="isComputerMode">True for computer opponent, false for two players</param>
+        public void SetComputerMode(bool isComputerMode)
         {
-            // Перевіряємо, чи це хід гравця, а не комп'ютера
-            bool isPlayerTurn;
-            if (_isComputerMode)
-            {
-                isPlayerTurn = (_playerPlaysBlack && _currentPlayer == "black") ||
+            _isComputerMode = isComputerMode;
+        }
+
+        /// <summary>
+        /// Checks if it's currently the human player's turn
+        /// </summary>
+        /// <returns>True if it's the human player's turn, false if it's the computer's turn</returns>
+        public bool IsPlayerTurn()
+        {
+            if (!_isComputerMode)
+                return true;
+
+            bool isPlayerTurn = (_playerPlaysBlack && _currentPlayer == "black") ||
                                (!_playerPlaysBlack && _currentPlayer == "white");
 
-                if (!isPlayerTurn)
-                {
-                    return false; // Не дозволяємо гравцю ходити за комп'ютера
-                }
-            }
+            return isPlayerTurn;
+        }
+
+        /// <summary>
+        /// Clears the board
+        /// </summary>
+        public void ClearBoard()
+        {
+            _board.ClearBoard();
+            _halfMovesSinceCaptureOrPawn = 0;
+        }
+
+        #endregion
+
+        #region Move Handling
+
+        /// <summary>
+        /// Attempts to move a piece
+        /// </summary>
+        /// <param name="startRow">Starting row</param>
+        /// <param name="startCol">Starting column</param>
+        /// <param name="endRow">Ending row</param>
+        /// <param name="endCol">Ending column</param>
+        /// <returns>True if the move was valid and executed</returns>
+        public bool TryMovePiece(int startRow, int startCol, int endRow, int endCol)
+        {
+            if (!IsPlayerTurn())
+                return false;
+
+            Piece? piece = _board.GetPiece(startRow, startCol);
+            if (piece == null || piece.Color != _currentPlayer)
+                return false;
 
             if (_board.IsValidMove(startRow, startCol, endRow, endCol, _currentPlayer))
             {
                 Piece? movedPiece = _board.GetPiece(startRow, startCol);
                 Piece? capturedPiece = _board.GetPiece(endRow, endCol);
-                _board.MovePiece(startRow, startCol, endRow, endCol);
-                string moveNotation = GetMoveNotation(movedPiece, startCol, startRow, endCol, endRow, capturedPiece);
-                MoveMade?.Invoke(this, EventArgs.Empty);
 
-                // Перевірка на підвищення пішака
-                if (movedPiece?.Type == "pawn" &&
-                    ((movedPiece.Color == "white" && endRow == 0) || // Білий пішак досягає верхнього краю
-                     (movedPiece.Color == "black" && endRow == 7)))  // Чорний пішак досягає нижнього краю
+                bool isPawnMove = movedPiece?.Type == "pawn";
+                bool isCapture = capturedPiece != null;
+
+                if (isPawnMove || isCapture)
                 {
-                    // Автоматично перетворюємо на ферзя (може бути змінено на діалог вибору)
-                    _board.SetPiece(endRow, endCol, new Piece(movedPiece.Color, "queen"));
-                    BoardUpdated?.Invoke(this, EventArgs.Empty);
-                }
-
-                // Визначаємо колір опонента для перевірки шаху/мату
-                string opponentColor = (_currentPlayer == "white") ? "black" : "white";
-
-                // Знаходимо позицію короля опонента
-                int opponentKingRow = -1;
-                int opponentKingCol = -1;
-                for (int r = 0; r < 8; r++)
-                {
-                    for (int c = 0; c < 8; c++)
-                    {
-                        if (_board.GetPiece(r, c)?.Color == opponentColor && _board.GetPiece(r, c)?.Type == "king")
-                        {
-                            opponentKingRow = r;
-                            opponentKingCol = c;
-                            break;
-                        }
-                    }
-                    if (opponentKingRow != -1) break;
-                }
-
-                // Перевіряємо, чи був зроблений шах
-                if (opponentKingRow != -1 && _board.IsKingInCheck(opponentKingRow, opponentKingCol, _currentPlayer))
-                {
-                    Console.WriteLine($"{(_currentPlayer == "white" ? "Чорному" : "Білому")} шах!");
-                }
-
-                // Перевіряємо, чи був захоплений король (гра закінчена)
-                if (capturedPiece != null && capturedPiece.Type == "king")
-                {
-                    GameEnded?.Invoke(this, EventArgs.Empty);
-                    return true;
-                }
-
-                // Перевіряємо на мат або пат
-                if (_board.GetAllPossibleMovesForPlayer(opponentColor).Count == 0)
-                {
-                    if (_board.IsKingInCheck(opponentKingRow, opponentKingCol, _currentPlayer))
-                    {
-                        // Мат
-                        GameEnded?.Invoke(this, EventArgs.Empty);
-                    }
-                    else
-                    {
-                        // Пат
-                        GameEnded?.Invoke(this, EventArgs.Empty);
-                    }
-                    return true;
-                }
-
-                // Перемикаємо гравця і викликаємо хід комп'ютера, якщо необхідно
-                SwitchPlayer();
-                BoardUpdated?.Invoke(this, EventArgs.Empty);
-
-                return true;
-            }
-            return false;
-        }
-
-        public void MakeComputerMove()
-        {
-            // Визначаємо колір фігур комп'ютера в залежності від того, за кого грає людина
-            string computerColor = _playerPlaysBlack ? "white" : "black";
-
-            // Перевіряємо, чи зараз хід комп'ютера
-            if ((_playerPlaysBlack && _currentPlayer == "white") ||
-                (!_playerPlaysBlack && _currentPlayer == "black"))
-            {
-                var possibleMoves = _board.GetAllPossibleMovesForPlayer(computerColor);
-                if (possibleMoves.Any())
-                {
-                    Move? selectedMove = null;
-                    var random = new System.Random();
-
-                    if (_computerDifficulty == 1) // Легкий рівень: випадковий хід
-                    {
-                        selectedMove = possibleMoves[random.Next(possibleMoves.Count)];
-                    }
-                    else if (_computerDifficulty == 2) // Середній рівень: Minimax глибини 1
-                    {
-                        selectedMove = GetBestMoveMinimax(possibleMoves, 1, computerColor == "white");
-                    }
-                    else if (_computerDifficulty == 3) // Складний рівень: Minimax з більшою глибиною
-                    {
-                        selectedMove = GetBestMoveMinimax(possibleMoves, 2, computerColor == "white");
-                    }
-
-                    if (selectedMove != null)
-                    {
-                        Piece? movedPiece = _board.GetPiece(selectedMove.StartRow, selectedMove.StartCol);
-                        Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
-                        string moveNotation = GetMoveNotation(movedPiece, selectedMove.StartCol, selectedMove.StartRow, selectedMove.EndCol, selectedMove.EndRow, capturedPiece);
-                        _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
-
-                        // Перевірка на підвищення пішака комп'ютера
-                        if (movedPiece?.Type == "pawn" &&
-                            ((movedPiece.Color == "white" && selectedMove.EndRow == 0) ||
-                             (movedPiece.Color == "black" && selectedMove.EndRow == 7)))
-                        {
-                            _board.SetPiece(selectedMove.EndRow, selectedMove.EndCol, new Piece(movedPiece.Color, "queen"));
-                        }
-
-                        MoveMade?.Invoke(this, EventArgs.Empty);
-                        SwitchPlayer(); // Перемикаємо гравця, але БЕЗ рекурсивного виклику MakeComputerMove
-                        BoardUpdated?.Invoke(this, EventArgs.Empty);
-
-                        // Перевіряємо на закінчення гри після ходу комп'ютера
-                        CheckGameEnd(computerColor);
-                    }
-                }
-            }
-        }
-
-        private void CheckGameEnd(string lastMoveColor)
-        {
-            string opponentColor = (lastMoveColor == "white") ? "black" : "white";
-
-            // Знаходимо короля опонента
-            int kingRow = -1, kingCol = -1;
-            for (int r = 0; r < 8; r++)
-            {
-                for (int c = 0; c < 8; c++)
-                {
-                    if (_board.GetPiece(r, c)?.Type == "king" && _board.GetPiece(r, c)?.Color == opponentColor)
-                    {
-                        kingRow = r;
-                        kingCol = c;
-                        break;
-                    }
-                }
-                if (kingRow != -1) break;
-            }
-
-            // Якщо немає можливих ходів і король під шахом - мат
-            if (kingRow != -1 && _board.GetAllPossibleMovesForPlayer(opponentColor).Count == 0)
-            {
-                if (_board.IsKingInCheck(kingRow, kingCol, lastMoveColor))
-                {
-                    GameEnded?.Invoke(this, EventArgs.Empty);
+                    _halfMovesSinceCaptureOrPawn = 0;
                 }
                 else
                 {
-                    // Пат
-                    GameEnded?.Invoke(this, EventArgs.Empty);
+                    _halfMovesSinceCaptureOrPawn++;
                 }
-            }
-        }
 
-        private Move? GetBestMoveMinimax(List<Move> possibleMoves, int depth, bool maximizingPlayer)
-        {
-            if (depth == 0 || IsGameOver())
-            {
-                return new Move(-1, -1, -1, -1) { Score = _board.EvaluateBoard() };
-            }
+                _board.MovePiece(startRow, startCol, endRow, endCol);
 
-            Move? bestMove = null;
+                string moveNotation = GetMoveNotation(movedPiece, startRow, startCol, endRow, endCol, capturedPiece);
 
-            if (maximizingPlayer) // Білі намагаються максимізувати рахунок
-            {
-                int maxEval = int.MinValue;
-                foreach (var move in possibleMoves)
+                bool wasPromoted = false;
+                if (IsPawnPromotion(endRow, endCol))
                 {
-                    // Створюємо копію дошки для аналізу без зміни оригінальної
-                    Board tempBoard = new Board(_board.GetPieces());
-                    tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
-
-                    // Рекурсивно оцінюємо цей хід
-                    GameLogic tempGameLogic = new GameLogic { _board = tempBoard };
-                    var nextPossibleMoves = tempBoard.GetAllPossibleMovesForPlayer("black");
-                    var result = tempGameLogic.GetBestMoveMinimax(nextPossibleMoves, depth - 1, false);
-
-                    if (result != null)
+                    wasPromoted = HandlePawnPromotion(endRow, endCol);
+                    if (!wasPromoted)
                     {
-                        move.Score = result.Score;
-                        if (result.Score > maxEval)
+                        _board.MovePiece(endRow, endCol, startRow, startCol);
+                        if (capturedPiece != null)
                         {
-                            maxEval = result.Score;
-                            bestMove = move;
+                            _board.SetPiece(endRow, endCol, capturedPiece);
                         }
+                        return false;
                     }
                 }
-            }
-            else // Чорні намагаються мінімізувати рахунок
-            {
-                int minEval = int.MaxValue;
-                foreach (var move in possibleMoves)
+
+                OnMoveMade(new MoveEventArgs(startRow, startCol, endRow, endCol, moveNotation));
+
+                if (capturedPiece?.Type == "king")
                 {
-                    Board tempBoard = new Board(_board.GetPieces());
-                    tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
+                    OnGameEnded(new GameEndEventArgs(GameEndType.KingCaptured, _currentPlayer));
+                    return true;
+                }
 
-                    GameLogic tempGameLogic = new GameLogic { _board = tempBoard };
-                    var nextPossibleMoves = tempBoard.GetAllPossibleMovesForPlayer("white");
-                    var result = tempGameLogic.GetBestMoveMinimax(nextPossibleMoves, depth - 1, true);
+                if (_halfMovesSinceCaptureOrPawn >= 100)
+                {
+                    OnGameEnded(new GameEndEventArgs(GameEndType.Draw, ""));
+                    return true;
+                }
 
-                    if (result != null)
+                SwitchPlayer();
+
+                GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
+                if (endType != GameEndType.None)
+                {
+                    string winner = _currentPlayer == "white" ? "black" : "white";
+                    OnGameEnded(new GameEndEventArgs(endType, winner));
+                    return true;
+                }
+
+                OnBoardUpdated();
+
+                if (_isComputerMode && !IsPlayerTurn())
+                {
+                    Task.Run(() =>
                     {
-                        move.Score = result.Score;
-                        if (result.Score < minEval)
+                        System.Threading.Thread.Sleep(500);
+
+                        Application.Current.Dispatcher.Invoke(() =>
                         {
-                            minEval = result.Score;
-                            bestMove = move;
-                        }
-                    }
+                            MakeComputerMove();
+                        });
+                    });
                 }
+
+                return true;
             }
 
-            return bestMove;
-        }
-
-        private bool IsGameOver()
-        {
-            string opponentColor = (_currentPlayer == "white") ? "black" : "white";
-            int opponentKingRow = -1;
-            int opponentKingCol = -1;
-
-            // Знаходимо короля опонента
-            for (int r = 0; r < 8; r++)
-            {
-                for (int c = 0; c < 8; c++)
-                {
-                    if (_board.GetPiece(r, c)?.Color == opponentColor && _board.GetPiece(r, c)?.Type == "king")
-                    {
-                        opponentKingRow = r;
-                        opponentKingCol = c;
-                        break;
-                    }
-                }
-                if (opponentKingRow != -1) break;
-            }
-
-            // Перевіряємо, чи є можливі ходи
-            if (opponentKingRow != -1 && _board.GetAllPossibleMovesForPlayer(opponentColor).Count == 0)
-            {
-                return true; // Гра закінчена (мат або пат)
-            }
             return false;
         }
 
-        public void SetComputerMode(bool isComputerMode)
+        /// <summary>
+        /// Checks if a pawn needs promotion
+        /// </summary>
+        /// <param name="row">Pawn's row position</param>
+        /// <param name="col">Pawn's column position</param>
+        /// <returns>True if pawn should be promoted</returns>
+        private bool IsPawnPromotion(int row, int col)
         {
-            _isComputerMode = isComputerMode;
-            _currentPlayer = "white"; // Шахи завжди починаються з білих
+            Piece? piece = _board.GetPiece(row, col);
 
-            // !!! ВАЖЛИВА ЗМІНА: перший хід комп'ютера тепер викликатиметься з MainWindow
-            // щоб уникнути рекурсивних викликів
+            return piece?.Type == "pawn" &&
+                 ((piece.Color == "white" && row == 0) ||
+                  (piece.Color == "black" && row == 7));
         }
 
-        public void SwitchPlayerColor()
+        /// <summary>
+        /// Handles pawn promotion with dialog or automatic promotion
+        /// </summary>
+        /// <param name="row">Pawn's row position</param>
+        /// <param name="col">Pawn's column position</param>
+        /// <returns>True if promotion was successful, false if cancelled</returns>
+        private bool HandlePawnPromotion(int row, int col)
         {
-            _playerPlaysBlack = !_playerPlaysBlack;
-            InitializeGame(); // Перезапускаємо гру з новим кольором
+            Piece? pawn = _board.GetPiece(row, col);
+
+            if (pawn?.Type == "pawn")
+            {
+                string pawnColor = pawn.Color;
+
+                if (_isComputerMode && !IsPlayerTurn())
+                {
+                    _board.SetPiece(row, col, new Piece(pawnColor, "queen"));
+                    OnBoardUpdated();
+                    return true;
+                }
+
+                var args = new PawnPromotionEventArgs(row, col, pawnColor);
+                OnPawnPromotion(args);
+
+                if (args.IsCancelled)
+                    return false;
+
+                string pieceType = string.IsNullOrEmpty(args.PromotionPiece)
+                    ? _showPromotionDialog(pawnColor)
+                    : args.PromotionPiece;
+
+                _board.SetPiece(row, col, new Piece(pawnColor, pieceType));
+                OnBoardUpdated();
+                return true;
+            }
+
+            return false;
         }
 
+        /// <summary>
+        /// Switches to the next player's turn
+        /// </summary>
         private void SwitchPlayer()
         {
             _currentPlayer = _currentPlayer == "white" ? "black" : "white";
-
-            // !!! ВИДАЛІТЬ АБО ЗАКОМЕНТУЙТЕ ЦЮ ЧАСТИНУ !!!
-            // Весь блок нижче повинен бути видалений або закоментований
-            /*
-            // Викликаємо комп'ютерний хід, якщо увімкнений комп'ютерний режим і зараз хід комп'ютера
-            if (_isComputerMode)
-            {
-                bool isComputerTurn = (_playerPlaysBlack && _currentPlayer == "white") ||
-                                     (!_playerPlaysBlack && _currentPlayer == "black");
-
-                if (isComputerTurn)
-                {
-                    MakeComputerMove();
-                }
-            }
-            */
         }
 
-        private string GetMoveNotation(Piece? piece, int startCol, int startRow, int endCol, int endRow, Piece? capturedPiece)
+        /// <summary>
+        /// Generates chess notation for a move
+        /// </summary>
+        /// <param name="piece">The piece that moved</param>
+        /// <param name="startRow">Starting row</param>
+        /// <param name="startCol">Starting column</param>
+        /// <param name="endRow">Ending row</param>
+        /// <param name="endCol">Ending column</param>
+        /// <param name="capturedPiece">Piece that was captured, if any</param>
+        /// <returns>Algebraic notation for the move</returns>
+        private string GetMoveNotation(Piece? piece, int startRow, int startCol, int endRow, int endCol, Piece? capturedPiece)
         {
             if (piece == null) return "";
 
-            string pieceNotation = piece.Type switch
+            if (piece.Type == "king" && Math.Abs(endCol - startCol) == 2)
             {
+                return endCol > startCol ? "O-O" : "O-O-O";
+            }
+
+            string pieceSymbol = piece.Type switch
+            {
+                "pawn" => "",
                 "knight" => "N",
                 "bishop" => "B",
                 "rook" => "R",
@@ -408,52 +429,557 @@ namespace ChessTrainer
             };
 
             string capture = capturedPiece != null ? "x" : "";
-            string startFile = ((char)('a' + startCol)).ToString();
-            string startRank = (8 - startRow).ToString();
-            string endFile = ((char)('a' + endCol)).ToString();
-            string endRank = (8 - endRow).ToString();
+            string startSquare = $"{(char)('a' + startCol)}{8 - startRow}";
+            string endSquare = $"{(char)('a' + endCol)}{8 - endRow}";
 
             if (piece.Type == "pawn" && capture != "")
             {
-                return $"{startFile}{capture}{endFile}{endRank}";
+                return $"{(char)('a' + startCol)}{capture}{endSquare}";
             }
 
-            return $"{pieceNotation}{startFile}{startRank}{capture}{endFile}{endRank}";
-        }
+            bool needsFile = false;
+            bool needsRank = false;
 
-        public string? GetPieceSymbol(Piece? piece)
-        {
-            if (piece == null) return null;
-            return piece.Color == "white" ? GetWhiteSymbol(piece.Type) : GetBlackSymbol(piece.Type);
-        }
-
-        private string GetWhiteSymbol(string type)
-        {
-            return type switch
+            if (piece.Type != "pawn")
             {
-                "pawn" => "♙",
-                "rook" => "♖",
-                "knight" => "♘",
-                "bishop" => "♗",
-                "queen" => "♕",
-                "king" => "♔",
-                _ => ""
-            };
+                for (int row = 0; row < 8; row++)
+                {
+                    for (int col = 0; col < 8; col++)
+                    {
+                        if (row == startRow && col == startCol)
+                            continue;
+
+                        Piece? otherPiece = _board.GetPiece(row, col);
+
+                        if (otherPiece?.Type == piece.Type &&
+                            otherPiece.Color == piece.Color &&
+                            _board.IsValidMove(row, col, endRow, endCol, piece.Color))
+                        {
+                            needsFile = true;
+
+                            if (col == startCol)
+                                needsRank = true;
+                        }
+                    }
+                }
+            }
+
+            string qualifier = "";
+            if (needsFile)
+                qualifier += (char)('a' + startCol);
+            if (needsRank)
+                qualifier += (8 - startRow);
+
+            string notation = $"{pieceSymbol}{qualifier}{capture}{endSquare}";
+
+            string opponentColor = piece.Color == "white" ? "black" : "white";
+
+            Board tempBoard = new Board(_board.GetPieces());
+            tempBoard.MovePiece(startRow, startCol, endRow, endCol);
+
+            if (tempBoard.IsKingInCheck(opponentColor))
+            {
+                GameEndType endType = tempBoard.CheckForGameEnd(opponentColor);
+                if (endType == GameEndType.Checkmate)
+                    notation += "#";
+                else
+                    notation += "+";
+            }
+
+            return notation;
         }
 
-        private string GetBlackSymbol(string type)
+        /// <summary>
+        /// Makes a move for the computer player
+        /// </summary>
+        public void MakeComputerMove()
         {
-            return type switch
+            string computerColor = _playerPlaysBlack ? "white" : "black";
+
+            if (_currentPlayer != computerColor)
+                return;
+
+            var possibleMoves = _board.GetAllPossibleMovesForPlayer(computerColor);
+
+            if (possibleMoves.Count > 0)
             {
-                "pawn" => "♟",
-                "rook" => "♜",
-                "knight" => "♞",
-                "bishop" => "♝",
-                "queen" => "♛",
-                "king" => "♚",
-                _ => ""
-            };
+                Move? selectedMove = GetBestMove(possibleMoves, (int)CurrentDifficulty, computerColor == "white");
+
+                if (selectedMove != null)
+                {
+                    Piece? movedPiece = _board.GetPiece(selectedMove.StartRow, selectedMove.StartCol);
+                    Piece? capturedPiece = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
+
+                    bool isPawnMove = movedPiece?.Type == "pawn";
+                    bool isCapture = capturedPiece != null;
+
+                    if (isPawnMove || isCapture)
+                    {
+                        _halfMovesSinceCaptureOrPawn = 0;
+                    }
+                    else
+                    {
+                        _halfMovesSinceCaptureOrPawn++;
+                    }
+
+                    _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
+
+                    if (IsPawnPromotion(selectedMove.EndRow, selectedMove.EndCol))
+                    {
+                        Piece? pawn = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
+                        if (pawn != null)
+                        {
+                            _board.SetPiece(selectedMove.EndRow, selectedMove.EndCol, new Piece(pawn.Color, "queen"));
+                        }
+                    }
+
+                    string moveNotation = GetMoveNotation(
+                        movedPiece,
+                        selectedMove.StartRow,
+                        selectedMove.StartCol,
+                        selectedMove.EndRow,
+                        selectedMove.EndCol,
+                        capturedPiece
+                    );
+
+                    OnMoveMade(new MoveEventArgs(
+                        selectedMove.StartRow,
+                        selectedMove.StartCol,
+                        selectedMove.EndRow,
+                        selectedMove.EndCol,
+                        moveNotation
+                    ));
+
+                    if (capturedPiece?.Type == "king")
+                    {
+                        OnGameEnded(new GameEndEventArgs(GameEndType.KingCaptured, computerColor));
+                        return;
+                    }
+
+                    if (_halfMovesSinceCaptureOrPawn >= 100)
+                    {
+                        OnGameEnded(new GameEndEventArgs(GameEndType.Draw, ""));
+                        return;
+                    }
+
+                    SwitchPlayer();
+
+                    GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
+                    if (endType != GameEndType.None)
+                    {
+                        string winner = _currentPlayer == "white" ? "black" : "white";
+                        OnGameEnded(new GameEndEventArgs(endType, winner));
+                        return;
+                    }
+
+                    OnBoardUpdated();
+                }
+            }
+        }
+        #endregion
+
+        #region AI Methods
+
+        /// <summary>
+        /// Gets the best move for the computer player
+        /// </summary>
+        /// <param name="possibleMoves">List of possible moves</param>
+        /// <param name="difficulty">Difficulty level (1-5)</param>
+        /// <param name="maximizingPlayer">True if the AI is playing white</param>
+        /// <returns>The best move</returns>
+        public Move? GetBestMove(List<Move> possibleMoves, int difficulty, bool maximizingPlayer)
+        {
+            if (possibleMoves.Count == 0)
+                return null;
+
+            if (difficulty <= 1)
+            {
+                return possibleMoves[_random.Next(possibleMoves.Count)];
+            }
+
+            int depth = difficulty;
+
+            if (difficulty >= 4)
+            {
+                return GetBestMoveParallel(possibleMoves, depth, maximizingPlayer);
+            }
+            else if (difficulty >= 2)
+            {
+                return GetBestMoveAlphaBeta(possibleMoves, depth, maximizingPlayer);
+            }
+            else
+            {
+                return GetBestMoveMinimax(possibleMoves, depth, maximizingPlayer);
+            }
+        }
+
+        /// <summary>
+        /// Gets the best move using the minimax algorithm
+        /// </summary>
+        /// <param name="possibleMoves">List of possible moves</param>
+        /// <param name="depth">Search depth</param>
+        /// <param name="maximizingPlayer">True if AI is white (maximizing), false if black (minimizing)</param>
+        /// <returns>Best move according to the minimax algorithm</returns>
+        private Move? GetBestMoveMinimax(List<Move> possibleMoves, int depth, bool maximizingPlayer)
+        {
+            if (possibleMoves.Count == 0 || depth == 0)
+                return null;
+
+            Move? bestMove = null;
+            int bestScore = maximizingPlayer ? int.MinValue : int.MaxValue;
+
+            foreach (var move in possibleMoves)
+            {
+                Board tempBoard = new Board(_board.GetPieces());
+                tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
+
+                int score;
+
+                if (depth == 1)
+                {
+                    score = tempBoard.EvaluatePosition();
+                }
+                else
+                {
+                    string nextPlayerColor = maximizingPlayer ? "black" : "white";
+                    var nextMoves = tempBoard.GetAllPossibleMovesForPlayer(nextPlayerColor);
+
+                    var result = GetBestMoveMinimax(nextMoves, depth - 1, !maximizingPlayer);
+
+                    if (result == null)
+                    {
+                        score = tempBoard.EvaluatePosition();
+                    }
+                    else
+                    {
+                        score = result.Score;
+                    }
+                }
+
+                move.Score = score;
+
+                if (maximizingPlayer)
+                {
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        bestMove = move;
+                    }
+                }
+                else
+                {
+                    if (score < bestScore)
+                    {
+                        bestScore = score;
+                        bestMove = move;
+                    }
+                }
+            }
+
+            return bestMove;
+        }
+
+        /// <summary>
+        /// Gets the best move using alpha-beta pruning
+        /// </summary>
+        /// <param name="possibleMoves">List of possible moves</param>
+        /// <param name="depth">Search depth</param>
+        /// <param name="maximizingPlayer">True if AI is white (maximizing), false if black (minimizing)</param>
+        /// <param name="alpha">Alpha value for pruning</param>
+        /// <param name="beta">Beta value for pruning</param>
+        /// <returns>Best move according to alpha-beta pruning</returns>
+        private Move? GetBestMoveAlphaBeta(List<Move> possibleMoves, int depth, bool maximizingPlayer,
+                                          int alpha = int.MinValue, int beta = int.MaxValue)
+        {
+            if (possibleMoves.Count == 0 || depth == 0)
+                return null;
+
+            Move? bestMove = null;
+
+            foreach (var move in possibleMoves)
+            {
+                Board tempBoard = new Board(_board.GetPieces());
+                tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
+
+                int score;
+
+                if (depth == 1)
+                {
+                    score = tempBoard.EvaluatePosition();
+                }
+                else
+                {
+                    string nextPlayerColor = maximizingPlayer ? "black" : "white";
+                    var nextMoves = tempBoard.GetAllPossibleMovesForPlayer(nextPlayerColor);
+
+                    var result = GetBestMoveAlphaBeta(nextMoves, depth - 1, !maximizingPlayer, alpha, beta);
+
+                    if (result == null)
+                    {
+                        score = tempBoard.EvaluatePosition();
+                    }
+                    else
+                    {
+                        score = result.Score;
+                    }
+                }
+
+                move.Score = score;
+
+                if (maximizingPlayer)
+                {
+                    if (score > alpha)
+                    {
+                        alpha = score;
+                        bestMove = move;
+                    }
+
+                    if (beta <= alpha)
+                        break;
+                }
+                else
+                {
+                    if (score < beta)
+                    {
+                        beta = score;
+                        bestMove = move;
+                    }
+
+                    if (beta <= alpha)
+                        break;
+                }
+            }
+
+            return bestMove ?? possibleMoves.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Gets the best move using parallel alpha-beta pruning
+        /// </summary>
+        /// <param name="possibleMoves">List of possible moves</param>
+        /// <param name="depth">Search depth</param>
+        /// <param name="maximizingPlayer">True if AI is white (maximizing), false if black (minimizing)</param>
+        /// <returns>Best move according to parallel alpha-beta pruning</returns>
+        private Move? GetBestMoveParallel(List<Move> possibleMoves, int depth, bool maximizingPlayer)
+        {
+            if (possibleMoves.Count == 0 || depth == 0)
+                return null;
+
+            List<Move> evaluatedMoves = new List<Move>();
+
+            Parallel.ForEach(possibleMoves, move =>
+            {
+                Move evaluatedMove = move.Clone();
+
+                Board tempBoard = new Board(_board.GetPieces());
+                tempBoard.MovePiece(move.StartRow, move.StartCol, move.EndRow, move.EndCol);
+
+                int score;
+
+                if (depth == 1)
+                {
+                    score = tempBoard.EvaluatePosition();
+                }
+                else
+                {
+                    string nextPlayerColor = maximizingPlayer ? "black" : "white";
+                    var nextMoves = tempBoard.GetAllPossibleMovesForPlayer(nextPlayerColor);
+
+                    var result = GetBestMoveAlphaBeta(nextMoves, depth - 1, !maximizingPlayer);
+
+                    if (result == null)
+                    {
+                        score = tempBoard.EvaluatePosition();
+                    }
+                    else
+                    {
+                        score = result.Score;
+                    }
+                }
+
+                evaluatedMove.Score = score;
+
+                lock (evaluatedMoves)
+                {
+                    evaluatedMoves.Add(evaluatedMove);
+                }
+            });
+
+            if (evaluatedMoves.Count == 0)
+                return possibleMoves.FirstOrDefault();
+
+            if (maximizingPlayer)
+            {
+                return evaluatedMoves.OrderByDescending(m => m.Score).FirstOrDefault();
+            }
+            else
+            {
+                return evaluatedMoves.OrderBy(m => m.Score).FirstOrDefault();
+            }
+        }
+
+        #endregion
+
+        #region Event Methods
+
+        /// <summary>
+        /// Raises the BoardUpdated event
+        /// </summary>
+        protected virtual void OnBoardUpdated()
+        {
+            BoardUpdated?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Raises the MoveMade event
+        /// </summary>
+        /// <param name="e">Event arguments</param>
+        protected virtual void OnMoveMade(MoveEventArgs e)
+        {
+            MoveMade?.Invoke(this, e);
+        }
+
+        /// <summary>
+        /// Raises the GameEnded event
+        /// </summary>
+        /// <param name="e">Event arguments</param>
+        protected virtual void OnGameEnded(GameEndEventArgs e)
+        {
+            GameEnded?.Invoke(this, e);
+        }
+
+        /// <summary>
+        /// Raises the PawnPromotion event
+        /// </summary>
+        /// <param name="e">Event arguments</param>
+        protected virtual void OnPawnPromotion(PawnPromotionEventArgs e)
+        {
+            PawnPromotion?.Invoke(this, e);
+        }
+
+        #endregion
+    }
+
+    #region Event Argument Classes
+
+    /// <summary>
+    /// Event arguments for moves
+    /// </summary>
+    public class MoveEventArgs : EventArgs
+    {
+        /// <summary>
+        /// Gets the starting row
+        /// </summary>
+        public int StartRow { get; }
+
+        /// <summary>
+        /// Gets the starting column
+        /// </summary>
+        public int StartCol { get; }
+
+        /// <summary>
+        /// Gets the ending row
+        /// </summary>
+        public int EndRow { get; }
+
+        /// <summary>
+        /// Gets the ending column
+        /// </summary>
+        public int EndCol { get; }
+
+        /// <summary>
+        /// Gets the move notation
+        /// </summary>
+        public string MoveNotation { get; }
+
+        /// <summary>
+        /// Creates a new MoveEventArgs instance
+        /// </summary>
+        /// <param name="startRow">Starting row</param>
+        /// <param name="startCol">Starting column</param>
+        /// <param name="endRow">Ending row</param>
+        /// <param name="endCol">Ending column</param>
+        /// <param name="moveNotation">Algebraic notation for the move</param>
+        public MoveEventArgs(int startRow, int startCol, int endRow, int endCol, string moveNotation)
+        {
+            StartRow = startRow;
+            StartCol = startCol;
+            EndRow = endRow;
+            EndCol = endCol;
+            MoveNotation = moveNotation;
         }
     }
 
+    /// <summary>
+    /// Event arguments for game end
+    /// </summary>
+    public class GameEndEventArgs : EventArgs
+    {
+        /// <summary>
+        /// Gets the type of game end
+        /// </summary>
+        public GameEndType EndType { get; }
+
+        /// <summary>
+        /// Gets the color of the winning player
+        /// </summary>
+        public string WinnerColor { get; }
+
+        /// <summary>
+        /// Creates a new GameEndEventArgs instance
+        /// </summary>
+        /// <param name="endType">Type of game end</param>
+        /// <param name="winnerColor">Color of the winning player</param>
+        public GameEndEventArgs(GameEndType endType, string winnerColor)
+        {
+            EndType = endType;
+            WinnerColor = winnerColor;
+        }
+    }
+
+    /// <summary>
+    /// Event arguments for pawn promotion
+    /// </summary>
+    public class PawnPromotionEventArgs : EventArgs
+    {
+        /// <summary>
+        /// Gets the row of the pawn
+        /// </summary>
+        public int Row { get; }
+
+        /// <summary>
+        /// Gets the column of the pawn
+        /// </summary>
+        public int Col { get; }
+
+        /// <summary>
+        /// Gets the color of the pawn
+        /// </summary>
+        public string PawnColor { get; }
+
+        /// <summary>
+        /// Gets or sets the piece type to promote to
+        /// </summary>
+        public string PromotionPiece { get; set; } = "";
+
+        /// <summary>
+        /// Gets or sets whether the promotion was cancelled
+        /// </summary>
+        public bool IsCancelled { get; set; } = false;
+
+        /// <summary>
+        /// Creates a new PawnPromotionEventArgs instance
+        /// </summary>
+        /// <param name="row">Pawn's row position</param>
+        /// <param name="col">Pawn's column position</param>
+        /// <param name="pawnColor">Color of the pawn</param>
+        public PawnPromotionEventArgs(int row, int col, string pawnColor)
+        {
+            Row = row;
+            Col = col;
+            PawnColor = pawnColor;
+        }
+    }
+
+    #endregion
 }
