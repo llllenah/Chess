@@ -276,9 +276,9 @@ namespace ChessTrainer
 
                 _board.MovePiece(startRow, startCol, endRow, endCol);
 
-                string moveNotation = GetMoveNotation(movedPiece, startRow, startCol, endRow, endCol, capturedPiece);
-
+                string? promotedPieceType = null;
                 bool wasPromoted = false;
+
                 if (IsPawnPromotion(endRow, endCol))
                 {
                     wasPromoted = HandlePawnPromotion(endRow, endCol);
@@ -291,13 +291,17 @@ namespace ChessTrainer
                         }
                         return false;
                     }
+
+                    Piece? promotedPiece = _board.GetPiece(endRow, endCol);
+                    promotedPieceType = promotedPiece?.Type;
                 }
 
-                // ВАЖЛИВО: Спочатку перемикаємо гравця
+                string moveNotation = GetMoveNotation(movedPiece, startRow, startCol, endRow, endCol,
+                                                     capturedPiece, promotedPieceType);
+
                 SwitchPlayer();
                 System.Diagnostics.Debug.WriteLine($"DEBUG: TryMovePiece() - After switch, current player: {_currentPlayer}");
 
-                // Потім викликаємо події
                 OnMoveMade(new MoveEventArgs(startRow, startCol, endRow, endCol, moveNotation));
 
                 if (capturedPiece?.Type == "king")
@@ -312,7 +316,6 @@ namespace ChessTrainer
                     return true;
                 }
 
-                // Перевірка кінця гри для НОВОГО поточного гравця (після перемикання)
                 GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
                 if (endType != GameEndType.None)
                 {
@@ -323,7 +326,6 @@ namespace ChessTrainer
 
                 OnBoardUpdated();
 
-                // Після успішного ходу людини, якщо це комп'ютерний режим - запускаємо хід комп'ютера
                 if (_isComputerMode && !IsPlayerTurn())
                 {
                     Task.Run(() =>
@@ -342,6 +344,7 @@ namespace ChessTrainer
 
             return false;
         }
+
         /// <summary>
         /// Checks if a pawn needs promotion
         /// </summary>
@@ -414,7 +417,8 @@ namespace ChessTrainer
         /// <param name="endCol">Ending column</param>
         /// <param name="capturedPiece">Piece that was captured, if any</param>
         /// <returns>Algebraic notation for the move</returns>
-        private string GetMoveNotation(Piece? piece, int startRow, int startCol, int endRow, int endCol, Piece? capturedPiece)
+        private string GetMoveNotation(Piece? piece, int startRow, int startCol, int endRow, int endCol,
+                              Piece? capturedPiece, string? promotedPiece = null)
         {
             if (piece == null) return "";
 
@@ -440,7 +444,7 @@ namespace ChessTrainer
 
             if (piece.Type == "pawn" && capture != "")
             {
-                return $"{(char)('a' + startCol)}{capture}{endSquare}";
+                pieceSymbol = $"{(char)('a' + startCol)}";
             }
 
             bool needsFile = false;
@@ -462,7 +466,6 @@ namespace ChessTrainer
                             _board.IsValidMove(row, col, endRow, endCol, piece.Color))
                         {
                             needsFile = true;
-
                             if (col == startCol)
                                 needsRank = true;
                         }
@@ -478,10 +481,28 @@ namespace ChessTrainer
 
             string notation = $"{pieceSymbol}{qualifier}{capture}{endSquare}";
 
+            if (!string.IsNullOrEmpty(promotedPiece))
+            {
+                string promotionSymbol = promotedPiece switch
+                {
+                    "queen" => "Q",
+                    "rook" => "R",
+                    "bishop" => "B",
+                    "knight" => "N",
+                    _ => "Q"
+                };
+                notation += $"={promotionSymbol}";
+            }
+
             string opponentColor = piece.Color == "white" ? "black" : "white";
 
             Board tempBoard = new Board(_board.GetPieces());
             tempBoard.MovePiece(startRow, startCol, endRow, endCol);
+
+            if (!string.IsNullOrEmpty(promotedPiece))
+            {
+                tempBoard.SetPiece(endRow, endCol, new Piece(piece.Color, promotedPiece));
+            }
 
             if (tempBoard.IsKingInCheck(opponentColor))
             {
@@ -494,7 +515,6 @@ namespace ChessTrainer
 
             return notation;
         }
-
         /// <summary>
         /// Makes a move for the computer player
         /// </summary>
@@ -537,12 +557,14 @@ namespace ChessTrainer
 
                     _board.MovePiece(selectedMove.StartRow, selectedMove.StartCol, selectedMove.EndRow, selectedMove.EndCol);
 
+                    string? promotedPieceType = null;
                     if (IsPawnPromotion(selectedMove.EndRow, selectedMove.EndCol))
                     {
                         Piece? pawn = _board.GetPiece(selectedMove.EndRow, selectedMove.EndCol);
                         if (pawn != null)
                         {
                             _board.SetPiece(selectedMove.EndRow, selectedMove.EndCol, new Piece(pawn.Color, "queen"));
+                            promotedPieceType = "queen";
                         }
                     }
 
@@ -552,14 +574,13 @@ namespace ChessTrainer
                         selectedMove.StartCol,
                         selectedMove.EndRow,
                         selectedMove.EndCol,
-                        capturedPiece
+                        capturedPiece,
+                        promotedPieceType
                     );
 
-                    // ВАЖЛИВО: Спочатку перемикаємо гравця
                     SwitchPlayer();
                     System.Diagnostics.Debug.WriteLine($"DEBUG: MakeComputerMove() - After switch, current player: {_currentPlayer}");
 
-                    // Потім викликаємо події
                     OnMoveMade(new MoveEventArgs(
                         selectedMove.StartRow,
                         selectedMove.StartCol,
@@ -580,7 +601,6 @@ namespace ChessTrainer
                         return;
                     }
 
-                    // Перевірка кінця гри для НОВОГО поточного гравця (після перемикання)
                     GameEndType endType = _board.CheckForGameEnd(_currentPlayer);
                     if (endType != GameEndType.None)
                     {
@@ -597,7 +617,6 @@ namespace ChessTrainer
                 System.Diagnostics.Debug.WriteLine($"DEBUG: MakeComputerMove() - No possible moves for {computerColor}");
             }
         }
-
 
         #endregion
 
